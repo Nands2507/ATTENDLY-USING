@@ -1,0 +1,46 @@
+========================================================================
+SHOP ATTENDANCE MANAGER - INSTALLATION & APK GUIDE
+========================================================================
+
+YOUR FRESH APK IS LOCATED RIGHT OUTSIDE IN THIS MAIN ZIP FOLDER:
+------------------------------------------------------------------------
+1. "00_ShopAttendance_Install.apk" (or "ShopAttendance.apk")
+   -> Placed directly outside in the main root folder so it is immediately visible
+      the moment you open or extract the ZIP file!
+   -> Features Included:
+      * 30-Days Style Payroll:
+        - PER day salary = Employee Monthly Salary ÷ 30 (for every month of the year)
+        - 1 Sunday Wage = PER day salary (Sundays paid at full per-day wage)
+        - Half day present: PER day salary ÷ 2 is deducted in absent deductions
+      * Compact UI: Clean, space-efficient employee attendance list without wasted gaps
+      * Full Attendance tracking with In/Out timings & Overtime
+      * 360-degree Employee Profile with tap-to-open from attendance
+      * SMS Task Scheduling & Notifications
+      * T-Hisab Ledger (Item-based work & payments)
+      * Printable / WhatsApp Salary Slips & Monthly Register
+
+------------------------------------------------------------------------
+HOW TO INSTALL ON YOUR ANDROID PHONE:
+------------------------------------------------------------------------
+1. Open or extract the downloaded ZIP folder.
+2. Directly tap "00_ShopAttendance_Install.apk" (or "ShopAttendance.apk").
+3. If your browser or phone displays:
+   * "File might be harmful" / "Blocked download": Tap "Keep" or "Download anyway".
+   * "Blocked by Play Protect": Tap "More details" -> "Install anyway".
+4. The app installs immediately with all your data and settings intact!
+
+------------------------------------------------------------------------
+GITHUB PAGES LIVE T-HISAB PASSBOOK SETUP (FOR STAFF SHARING):
+------------------------------------------------------------------------
+1. Upload/push this code folder to a public GitHub repository
+   (it already includes docs/index.html & docs/.nojekyll).
+2. In your GitHub repository, open:
+   Settings -> Pages -> Source: "Deploy from a branch"
+   Branch: main | Folder: /docs -> Click Save.
+3. Copy your live GitHub Pages URL (e.g. https://username.github.io/repo)
+   and paste it inside the app's Share Statement dialog (or Firebase Sync).
+4. Shared links include "&lock=1" so each staff member sees ONLY their own
+   view-only T-Hisab & Attendance. For strict Owner-Only cloud writes, set
+   Firebase Realtime Database Rules to ".read": true, ".write": false and
+   save your Firebase Database Secret inside the app's Firebase Sync settings.
+========================================================================

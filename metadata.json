@@ -1,0 +1,6 @@
+{
+  "name": "Shop Attendance Manager",
+  "description": "A customized attendance tracker for shops, allowing to record staff attendance along with incoming (check-in) and outgoing (check-out) times.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

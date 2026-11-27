@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Staff T-Hisab & Attendance Passbook</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #1e3a8a;
+      --primary-light: #2563eb;
+      --primary-subtle: #eff6ff;
+      --success: #15803d;
+      --success-bg: #f0fdf4;
+      --danger: #b91c1c;
+      --danger-bg: #fef2f2;
+      --warning: #b45309;
+      --warning-bg: #fffbeb;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 560px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding-bottom: 40px;
+    }
+
+    .header-bar {
+      background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%);
+      color: #ffffff;
+      padding: 18px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-md);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .header-bar::after {
+      content: '';
+      position: absolute;
+      top: -30px;
+      right: -30px;
+      width: 110px;
+      height: 110px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 50%;
+    }
+
+    .badge-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(8px);
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .badge-live::before {
+      content: '';
+      width: 7px;
+      height: 7px;
+      background: #4ade80;
+      border-radius: 50%;
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.4; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.2); }
+      100% { opacity: 0.4; transform: scale(0.9); }
+    }
+
+    .header-title {
+      font-size: 19px;
+      font-weight: 800;
+      line-height: 1.25;
+    }
+
+    .header-sub {
+      font-size: 12px;
+      opacity: 0.88;
+      margin-top: 4px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .select-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    select {
+      width: 100%;
+      padding: 11px 13px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      background-color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s;
+      cursor: pointer;
+    }
+
+    select:focus {
+      border-color: var(--primary-light);
+    }
+
+    .staff-meta {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .meta-pill {
+      background: var(--primary-subtle);
+      color: var(--primary);
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 11px;
+    }
+
+    .filter-row {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      scrollbar-width: none;
+    }
+
+    .filter-row::-webkit-scrollbar {
+      display: none;
+    }
+
+    .filter-chip {
+      border: 1px solid var(--border);
+      background: #ffffff;
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+
+    .filter-chip.active {
+      background: var(--primary);
+      color: #ffffff;
+      border-color: var(--primary);
+    }
+
+    /* KPI Summary */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    .kpi-box {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 13px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .kpi-box.total-earned {
+      background: var(--success-bg);
+      border-color: #bbf7d0;
+    }
+
+    .kpi-box.total-advance {
+      background: var(--warning-bg);
+      border-color: #fde68a;
+    }
+
+    .kpi-box.net-balance {
+      grid-column: span 2;
+      background: #ffffff;
+      border: 1.5px solid #cbd5e1;
+      padding: 15px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .kpi-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .kpi-value {
+      font-size: 21px;
+      font-weight: 800;
+      color: var(--text);
+    }
+
+    .kpi-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .net-balance .kpi-value {
+      font-size: 30px;
+      font-weight: 800;
+      margin-top: 2px;
+    }
+
+    /* Navigation Tabs */
+    .tab-bar {
+      display: flex;
+      background: #e2e8f0;
+      padding: 4px;
+      border-radius: 12px;
+      gap: 4px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      border: none;
+      background: transparent;
+      padding: 9px 12px;
+      border-radius: 9px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: #ffffff;
+      color: var(--primary);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Lists */
+    .list-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .entry-card {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .entry-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .entry-left {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .entry-date {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .entry-detail {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.35;
+      word-break: break-word;
+    }
+
+    .entry-right {
+      text-align: right;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 3px;
+      flex-shrink: 0;
+    }
+
+    .entry-amount {
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .entry-amount.sales {
+      color: var(--success);
+    }
+
+    .entry-amount.advance {
+      color: var(--danger);
+    }
+
+    .entry-badge {
+      font-size: 9px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 6px;
+      text-transform: uppercase;
+    }
+
+    .entry-badge.sales {
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
+    .entry-badge.advance {
+      background: var(--danger-bg);
+      color: var(--danger);
+    }
+
+    .breakdown-list {
+      border-top: 1px dashed var(--border);
+      padding-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .breakdown-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11.5px;
+      color: #334155;
+      background: #f8fafc;
+      padding: 5px 8px;
+      border-radius: 6px;
+    }
+
+    .breakdown-name {
+      font-weight: 600;
+    }
+
+    .breakdown-calc {
+      font-weight: 700;
+      color: var(--primary);
+      white-space: nowrap;
+      margin-left: 8px;
+    }
+
+    /* Attendance */
+    .att-summary-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .att-pill {
+      font-size: 11px;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 999px;
+    }
+
+    .att-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .att-row:last-child {
+      border-bottom: none;
+    }
+
+    .att-status {
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+
+    .att-present { background: var(--success-bg); color: var(--success); }
+    .att-absent { background: var(--danger-bg); color: var(--danger); }
+    .att-half { background: var(--warning-bg); color: var(--warning); }
+
+    /* States */
+    .empty-state {
+      text-align: center;
+      padding: 28px 16px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    .loading-spinner {
+      display: inline-block;
+      width: 28px;
+      height: 28px;
+      border: 3.5px solid rgba(30, 58, 138, 0.15);
+      border-radius: 50%;
+      border-top-color: var(--primary);
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .refresh-btn {
+      width: 100%;
+      background: var(--primary-subtle);
+      color: var(--primary);
+      border: 1px solid #bfdbfe;
+      padding: 12px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.15s;
+    }
+
+    .refresh-btn:active {
+      background: #dbeafe;
+    }
+
+    .footer {
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header-bar">
+      <div class="badge-live">🔒 View-Only Passbook (Not Editable)</div>
+      <div class="header-title" id="shopName">Shop T-Hisab Portal</div>
+      <div class="header-sub" id="syncTime">Connecting to cloud database...</div>
+    </div>
+
+    <!-- Optional APK Download Card (shown only if APK file is hosted alongside this page) -->
+    <div id="apkDownloadCard" class="card" style="display: none; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1.5px solid #86efac; box-shadow: 0 4px 12px rgba(22, 101, 52, 0.08);">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+        <div>
+          <div style="font-size: 15px; font-weight: 800; color: #15803d; display: flex; align-items: center; gap: 6px;">
+            <span>📱</span> Shop Attendance Android App
+          </div>
+          <div style="font-size: 11.5px; color: #166534; margin-top: 2px;">
+            Attendance, Tasks, T-Hisab & Payroll
+          </div>
+        </div>
+        <a href="./00_ShopAttendance_Install.apk" download="Shop_Attendance_Manager.apk" style="background: #15803d; color: #ffffff; text-decoration: none; padding: 10px 16px; border-radius: 12px; font-weight: 800; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(21, 128, 61, 0.35); flex-shrink: 0;">
+          <span>📥</span> Get APK
+        </a>
+      </div>
+    </div>
+
+    <!-- Staff Selector Card -->
+    <div class="card">
+      <div id="staffSelectWrapper">
+        <label class="select-label" for="staffSelect">Staff Member</label>
+        <select id="staffSelect" onchange="onStaffSelected(this.value)">
+          <option value="">-- Choose Employee --</option>
+        </select>
+      </div>
+      <div id="lockedStaffBanner" style="display: none;">
+        <div style="font-size: 11px; font-weight: 800; color: #15803d; text-transform: uppercase; letter-spacing: 0.5px;">🔒 View-Only Staff Statement</div>
+        <div id="lockedStaffName" style="font-size: 18px; font-weight: 800; color: var(--text); margin-top: 2px;"></div>
+      </div>
+      <div class="staff-meta" id="staffMeta" style="display: none;"></div>
+    </div>
+
+    <!-- Main Content View -->
+    <div id="contentSection" style="display: none; flex-direction: column; gap: 12px;">
+      <!-- Month Filter Row -->
+      <div class="filter-row" id="monthFilterRow"></div>
+
+      <!-- KPI Overview -->
+      <div class="kpi-grid">
+        <div class="kpi-box total-earned">
+          <span class="kpi-title">Total Earned</span>
+          <span class="kpi-value" id="kpiEarned">₹0</span>
+          <span class="kpi-sub" id="kpiPieces">0 Pcs / Sarees</span>
+        </div>
+        <div class="kpi-box total-advance">
+          <span class="kpi-title">Advance / Paid</span>
+          <span class="kpi-value" id="kpiAdvance">₹0</span>
+          <span class="kpi-sub">Total Deductions</span>
+        </div>
+        <div class="kpi-box net-balance">
+          <span class="kpi-title" id="kpiBalanceTitle">Net Balance Payable</span>
+          <span class="kpi-value" id="kpiBalance">₹0</span>
+          <span class="kpi-sub" id="kpiBalanceSub">Amount Due to Staff</span>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="tab-bar">
+        <button class="tab-btn active" id="tabLedgerBtn" onclick="switchTab('ledger')">Hisab & Sarees</button>
+        <button class="tab-btn" id="tabAttBtn" onclick="switchTab('attendance')">Attendance Log</button>
+      </div>
+
+      <!-- Tab 1: Hisab & Sarees -->
+      <div id="ledgerTab">
+        <div class="list-container" id="ledgerList"></div>
+      </div>
+
+      <!-- Tab 2: Attendance History -->
+      <div id="attendanceTab" style="display: none;">
+        <div class="att-summary-bar" id="attSummaryBar"></div>
+        <div class="card" style="padding: 4px;">
+          <div id="attendanceList"></div>
+        </div>
+      </div>
+
+      <button class="refresh-btn" onclick="fetchFirebaseData(true)">
+        🔄 Refresh Live Passbook
+      </button>
+    </div>
+
+    <!-- Loading State -->
+    <div id="loadingState" class="empty-state">
+      <div class="loading-spinner"></div>
+      <div style="margin-top: 12px; font-weight: 600;">Loading latest cloud passbook...</div>
+    </div>
+
+    <!-- Error State -->
+    <div id="errorState" class="empty-state card" style="display: none; color: var(--danger);">
+      <p id="errorMsg" style="font-weight: 700; margin-bottom: 6px;">Unable to load data from Firebase.</p>
+      <p id="errorHint" style="font-size: 12px; color: var(--text-muted); line-height: 1.4;"></p>
+      <button class="refresh-btn" style="margin-top: 14px;" onclick="fetchFirebaseData(true)">Try Again</button>
+    </div>
+
+    <div class="footer">
+      🔒 View-Only Statement • Only the Shop Owner can edit records
+    </div>
+  </div>
+
+  <script>
+    // Default Firebase Cloud Configuration (overridable via ?fb=...&ws=...)
+    const DEFAULT_FIREBASE_URL = "https://gen-lang-client-0830360424-default-rtdb.firebaseio.com";
+    const DEFAULT_WORKSPACE = "shop_attendance";
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramStaffId = urlParams.get('staffId');
+    const paramEmpId = urlParams.get('emp');
+    const paramName = urlParams.get('name');
+    const paramMonth = urlParams.get('month');
+    const isLockedView = urlParams.get('lock') === '1' || urlParams.get('view') === 'only';
+
+    function sanitizeFirebaseUrl(raw) {
+      let base = (raw || DEFAULT_FIREBASE_URL).trim();
+      if (!/^https?:\/\//i.test(base)) {
+        base = "https://" + base;
+      }
+      base = base.replace(/\/+$/, "").replace(/\.json$/i, "");
+      return base;
+    }
+
+    function sanitizeWorkspace(raw) {
+      const cleaned = (raw || DEFAULT_WORKSPACE).trim() || DEFAULT_WORKSPACE;
+      return cleaned.replace(/[.#$\[\]/ ]/g, "_");
+    }
+
+    const FIREBASE_BASE_URL = sanitizeFirebaseUrl(urlParams.get('fb'));
+    const WORKSPACE_KEY = sanitizeWorkspace(urlParams.get('ws') || urlParams.get('workspace'));
+
+    let cloudData = null;
+    let selectedStudentId = null;
+    let selectedMonthFilter = paramMonth ? paramMonth.trim() : "ALL";
+
+    function escapeHtml(str) {
+      return String(str == null ? "" : str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function parseDateToObj(dateStr, timestamp) {
+      if (dateStr) {
+        const s = String(dateStr).trim();
+        let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+        if (m) {
+          return new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+        }
+        m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+        if (m) {
+          return new Date(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+        }
+      }
+      if (timestamp && Number(timestamp) > 0) {
+        return new Date(Number(timestamp));
+      }
+      return null;
+    }
+
+    function getMonthKey(dateStr, timestamp) {
+      const d = parseDateToObj(dateStr, timestamp);
+      if (!d || isNaN(d.getTime())) return "Other";
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      return `${months[d.getMonth()]} ${d.getFullYear()}`;
+    }
+
+    function getSortMillis(dateStr, timestamp) {
+      const d = parseDateToObj(dateStr, timestamp);
+      const dayMillis = (d && !isNaN(d.getTime())) ? d.getTime() : 0;
+      const ts = Number(timestamp) || 0;
+      return Math.max(dayMillis, ts);
+    }
+
+    async function checkOptionalApk() {
+      try {
+        const res = await fetch("./00_ShopAttendance_Install.apk", { method: "HEAD" });
+        if (res.ok) {
+          document.getElementById("apkDownloadCard").style.display = "block";
+        }
+      } catch (_) {
+        // APK not hosted alongside static GitHub Pages site — keep card hidden
+      }
+    }
+
+    async function fetchFirebaseData(isManual = false) {
+      const loadingEl = document.getElementById('loadingState');
+      const errorEl = document.getElementById('errorState');
+      const contentEl = document.getElementById('contentSection');
+      const syncTimeEl = document.getElementById('syncTime');
+
+      if (isManual) {
+        syncTimeEl.textContent = 'Updating...';
+      }
+
+      try {
+        const endpoint = `${FIREBASE_BASE_URL}/${WORKSPACE_KEY}.json?t=${Date.now()}`;
+        const res = await fetch(endpoint);
+        if (!res.ok) throw new Error("HTTP error " + res.status);
+        const data = await res.json();
+
+        if (!data) {
+          throw new Error("NO_CLOUD_DATA");
+        }
+
+        cloudData = data;
+        loadingEl.style.display = 'none';
+        errorEl.style.display = 'none';
+        contentEl.style.display = 'flex';
+
+        if (data.workspace) {
+          document.getElementById('shopName').textContent = data.workspace + " • Staff Passbook";
+        }
+        if (data.lastSyncFormatted) {
+          syncTimeEl.textContent = "Last synced: " + data.lastSyncFormatted;
+        } else {
+          syncTimeEl.textContent = "Live Cloud Sync Active";
+        }
+
+        populateStaffDropdown();
+      } catch (err) {
+        console.error("Firebase fetch error:", err);
+        loadingEl.style.display = 'none';
+        contentEl.style.display = 'none';
+        errorEl.style.display = 'block';
+        if (err.message === "NO_CLOUD_DATA") {
+          document.getElementById('errorMsg').textContent = `No cloud data found yet for "${WORKSPACE_KEY}".`;
+          document.getElementById('errorHint').textContent = "Open Shop Attendance app → tap Firebase Sync → tap 'Backup to Firebase Now', then tap Try Again.";
+        } else {
+          document.getElementById('errorMsg').textContent = "Error connecting to cloud: " + err.message;
+          document.getElementById('errorHint').textContent = "Check your internet connection or verify Firebase Database rules allow read access.";
+        }
+        syncTimeEl.textContent = "Offline / Not synced yet";
+      }
+    }
+
+    function populateStaffDropdown() {
+      const select = document.getElementById('staffSelect');
+      const students = cloudData.students || [];
+
+      select.innerHTML = '<option value="">-- Choose Employee --</option>';
+
+      let matchById = null;
+      let matchByEmp = null;
+      let matchByName = null;
+
+      students.forEach(st => {
+        const opt = document.createElement('option');
+        opt.value = st.id;
+        opt.textContent = `${st.name} ${st.rollNumber ? '(ID: ' + st.rollNumber + ')' : ''}`;
+        select.appendChild(opt);
+
+        if (paramStaffId && String(st.id).trim() === String(paramStaffId).trim()) {
+          matchById = st.id;
+        }
+        if (paramEmpId && st.rollNumber && String(st.rollNumber).trim().toLowerCase() === String(paramEmpId).trim().toLowerCase()) {
+          matchByEmp = st.id;
+        }
+        if (paramName && st.name && String(st.name).trim().toLowerCase() === String(paramName).trim().toLowerCase()) {
+          matchByName = st.id;
+        }
+      });
+
+      const preselectId = matchById || matchByEmp || matchByName;
+      const selectWrapper = document.getElementById('staffSelectWrapper');
+      const lockedBanner = document.getElementById('lockedStaffBanner');
+      const lockedNameEl = document.getElementById('lockedStaffName');
+
+      if (isLockedView && (paramStaffId || paramEmpId || paramName)) {
+        if (preselectId) {
+          const matchedStudent = students.find(s => String(s.id) === String(preselectId));
+          selectWrapper.style.display = 'none';
+          lockedBanner.style.display = 'block';
+          lockedNameEl.textContent = matchedStudent ? matchedStudent.name : 'Employee';
+          select.value = preselectId;
+          onStaffSelected(preselectId);
+        } else {
+          document.getElementById('contentSection').style.display = 'none';
+          document.getElementById('errorState').style.display = 'block';
+          document.getElementById('errorMsg').textContent = 'Employee passbook not found for this view-only link.';
+          document.getElementById('errorHint').textContent = 'Ask the shop owner to sync Firebase and re-share your link.';
+        }
+        return;
+      }
+
+      selectWrapper.style.display = 'block';
+      lockedBanner.style.display = 'none';
+
+      if (preselectId) {
+        select.value = preselectId;
+        onStaffSelected(preselectId);
+      } else if (selectedStudentId && students.some(s => String(s.id) === String(selectedStudentId))) {
+        select.value = selectedStudentId;
+        onStaffSelected(selectedStudentId);
+      } else if (students.length > 0) {
+        select.value = students[0].id;
+        onStaffSelected(students[0].id);
+      }
+    }
+
+    function onStaffSelected(studentId) {
+      if (!studentId || !cloudData) return;
+      selectedStudentId = studentId;
+      renderStaffData();
+    }
+
+    function selectMonthFilter(monthKey) {
+      selectedMonthFilter = monthKey;
+      renderStaffData();
+    }
+
+    function renderStaffData() {
+      const students = cloudData.students || [];
+      const classes = cloudData.classes || [];
+      const records = cloudData.records || [];
+      const hisabEntries = cloudData.hisabEntries || [];
+      const currentStudent = students.find(s => String(s.id) === String(selectedStudentId));
+
+      if (!currentStudent) return;
+
+      // Staff Metadata Pills
+      const staffMetaEl = document.getElementById('staffMeta');
+      const dept = classes.find(c => String(c.id) === String(currentStudent.classId));
+      const pills = [];
+      if (currentStudent.rollNumber) pills.push(`<span class="meta-pill">ID: ${escapeHtml(currentStudent.rollNumber)}</span>`);
+      if (dept) pills.push(`<span class="meta-pill">${escapeHtml(dept.name)}</span>`);
+      if (currentStudent.phone) pills.push(`<span>📞 ${escapeHtml(currentStudent.phone)}</span>`);
+      if (pills.length > 0) {
+        staffMetaEl.innerHTML = pills.join('');
+        staffMetaEl.style.display = 'flex';
+      } else {
+        staffMetaEl.style.display = 'none';
+      }
+
+      // Collect all entries for this employee first
+      const rawLedgerList = [];
+      const staffHisab = hisabEntries.filter(e => String(e.studentId) === String(selectedStudentId));
+
+      if (staffHisab.length > 0) {
+        staffHisab.forEach(e => {
+          const type = (e.entryType || 'SALES').toUpperCase();
+          const earned = parseFloat(e.totalEarned) || 0;
+          const advance = parseFloat(e.advancePaid) || 0;
+          const pieces = parseInt(e.totalPieces, 10) || 0;
+          let breakdown = [];
+          if (e.itemBreakdownJson) {
+            try {
+              const parsed = JSON.parse(e.itemBreakdownJson);
+              if (Array.isArray(parsed)) breakdown = parsed;
+            } catch (_) {}
+          }
+          rawLedgerList.push({
+            date: e.dateString || 'Unknown',
+            monthKey: getMonthKey(e.dateString, e.timestamp),
+            type: type,
+            pieces: pieces,
+            amount: type === 'SALES' ? earned : advance,
+            notes: e.notes || '',
+            breakdown: breakdown,
+            timestamp: e.timestamp || 0
+          });
+        });
+      } else {
+        // Fallback: parse notes from attendance records
+        const staffRecordsForHisab = records.filter(r => String(r.studentId) === String(selectedStudentId));
+        staffRecordsForHisab.forEach(r => {
+          if (r.notes) {
+            const n = r.notes;
+            if (n.includes("[SALES]")) {
+              const pcsMatch = n.match(/(\d+)\s*(?:pcs|pieces|sarees)/i);
+              const amtMatch = n.match(/(?:Rs\.?|₹)\s*([\d.]+)/i);
+              const pcs = pcsMatch ? parseInt(pcsMatch[1], 10) : 0;
+              const amt = amtMatch ? parseFloat(amtMatch[1]) : 0;
+              rawLedgerList.push({
+                date: r.dateString,
+                monthKey: getMonthKey(r.dateString, r.timestamp),
+                type: 'SALES',
+                pieces: pcs,
+                amount: amt,
+                notes: n.replace(/\[SALES\]/g, '').trim(),
+                breakdown: [],
+                timestamp: r.timestamp || 0
+              });
+            } else if (n.includes("[ADVANCE]")) {
+              const amtMatch = n.match(/(?:Rs\.?|₹)\s*([\d.]+)/i);
+              const amt = amtMatch ? parseFloat(amtMatch[1]) : 0;
+              rawLedgerList.push({
+                date: r.dateString,
+                monthKey: getMonthKey(r.dateString, r.timestamp),
+                type: 'ADVANCE',
+                pieces: 0,
+                amount: amt,
+                notes: n.replace(/\[ADVANCE\]/g, '').trim(),
+                breakdown: [],
+                timestamp: r.timestamp || 0
+              });
+            }
+          }
+        });
+      }
+
+      const staffRecordsAll = records.filter(r => String(r.studentId) === String(selectedStudentId));
+
+      // Build distinct months list across Hisab & Attendance
+      const monthMap = new Map();
+      rawLedgerList.forEach(e => {
+        if (e.monthKey !== "Other") monthMap.set(e.monthKey, getSortMillis(e.date, e.timestamp));
+      });
+      staffRecordsAll.forEach(r => {
+        const mk = getMonthKey(r.dateString, r.timestamp);
+        if (mk !== "Other" && !monthMap.has(mk)) monthMap.set(mk, getSortMillis(r.dateString, r.timestamp));
+      });
+      const distinctMonths = Array.from(monthMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(entry => entry[0]);
+
+      if (selectedMonthFilter !== "ALL") {
+        const matched = distinctMonths.find(m => m.toLowerCase() === selectedMonthFilter.toLowerCase());
+        if (matched) selectedMonthFilter = matched;
+        else if (!distinctMonths.includes(selectedMonthFilter)) selectedMonthFilter = "ALL";
+      }
+
+      // Render Month Filter Chips
+      const monthFilterRow = document.getElementById('monthFilterRow');
+      const chips = [`<button class="filter-chip ${selectedMonthFilter === 'ALL' ? 'active' : ''}" onclick="selectMonthFilter('ALL')">🌐 All Time</button>`];
+      distinctMonths.forEach(mk => {
+        const isActive = selectedMonthFilter === mk;
+        chips.push(`<button class="filter-chip ${isActive ? 'active' : ''}" onclick="selectMonthFilter('${escapeHtml(mk)}')">📅 ${escapeHtml(mk)}</button>`);
+      });
+      monthFilterRow.innerHTML = chips.join('');
+
+      // Apply month filter
+      const ledgerList = selectedMonthFilter === "ALL"
+        ? rawLedgerList
+        : rawLedgerList.filter(e => e.monthKey === selectedMonthFilter);
+
+      const staffRecords = selectedMonthFilter === "ALL"
+        ? staffRecordsAll
+        : staffRecordsAll.filter(r => getMonthKey(r.dateString, r.timestamp) === selectedMonthFilter);
+
+      // Compute KPI totals
+      let totalEarned = 0;
+      let totalPieces = 0;
+      let totalAdvance = 0;
+      ledgerList.forEach(e => {
+        if (e.type === 'SALES') {
+          totalEarned += e.amount;
+          totalPieces += e.pieces;
+        } else {
+          totalAdvance += e.amount;
+        }
+      });
+
+      ledgerList.sort((a, b) => getSortMillis(b.date, b.timestamp) - getSortMillis(a.date, a.timestamp));
+      const netBalance = totalEarned - totalAdvance;
+
+      document.getElementById('kpiEarned').textContent = `₹${Math.round(totalEarned).toLocaleString('en-IN')}`;
+      document.getElementById('kpiPieces').textContent = `${totalPieces} Pcs / Sarees`;
+      document.getElementById('kpiAdvance').textContent = `₹${Math.round(totalAdvance).toLocaleString('en-IN')}`;
+      document.getElementById('kpiBalanceTitle').textContent = selectedMonthFilter === 'ALL'
+        ? 'Net Balance Payable (All Time)'
+        : `Net Balance (${selectedMonthFilter})`;
+
+      const balanceEl = document.getElementById('kpiBalance');
+      const balanceSubEl = document.getElementById('kpiBalanceSub');
+      balanceEl.textContent = `₹${Math.round(Math.abs(netBalance)).toLocaleString('en-IN')}`;
+      if (netBalance >= 0) {
+        balanceEl.style.color = '#15803d';
+        balanceSubEl.textContent = 'Net Payable to Staff';
+      } else {
+        balanceEl.style.color = '#b91c1c';
+        balanceSubEl.textContent = 'Excess Advance / Due from Staff';
+      }
+
+      // Render Ledger Items
+      const ledgerListEl = document.getElementById('ledgerList');
+      if (ledgerList.length === 0) {
+        ledgerListEl.innerHTML = `<div class="empty-state card">No saree sales or advances recorded for this period.</div>`;
+      } else {
+        ledgerListEl.innerHTML = ledgerList.map(e => {
+          const isSales = e.type === 'SALES';
+          const defaultSubtitle = isSales ? `${e.pieces} Pcs / Sarees` : 'Advance / Payment';
+          const detailText = e.notes ? `${isSales && e.pieces > 0 ? e.pieces + ' Pcs • ' : ''}${e.notes}` : defaultSubtitle;
+          const breakdownHtml = (isSales && Array.isArray(e.breakdown) && e.breakdown.length > 0)
+            ? `<div class="breakdown-list">${e.breakdown.map(item => {
+                const iName = escapeHtml(item.name || 'Item');
+                const iQty = parseInt(item.qty, 10) || 0;
+                const iRate = parseFloat(item.rate) || 0;
+                const iTotal = Math.round(iQty * iRate);
+                return `<div class="breakdown-row"><span class="breakdown-name">${iName} (${iQty} × ₹${Math.round(iRate)})</span><span class="breakdown-calc">₹${iTotal.toLocaleString('en-IN')}</span></div>`;
+              }).join('')}</div>`
+            : '';
+
+          return `
+            <div class="entry-card">
+              <div class="entry-top">
+                <div class="entry-left">
+                  <span class="entry-date">${escapeHtml(e.date)}</span>
+                  <span class="entry-detail">${escapeHtml(detailText)}</span>
+                </div>
+                <div class="entry-right">
+                  <span class="entry-amount ${isSales ? 'sales' : 'advance'}">${isSales ? '+' : '-'}₹${Math.round(e.amount).toLocaleString('en-IN')}</span>
+                  <span class="entry-badge ${isSales ? 'sales' : 'advance'}">${escapeHtml(e.type)}</span>
+                </div>
+              </div>
+              ${breakdownHtml}
+            </div>
+          `;
+        }).join('');
+      }
+
+      // Render Attendance Records & Summary
+      staffRecords.sort((a, b) => getSortMillis(b.dateString, b.timestamp) - getSortMillis(a.dateString, a.timestamp));
+      let pCount = 0, aCount = 0, hCount = 0;
+      staffRecords.forEach(a => {
+        const st = (a.status || 'P').toUpperCase();
+        if (st.startsWith('P')) pCount++;
+        else if (st.startsWith('A')) aCount++;
+        else hCount++;
+      });
+
+      const attSummaryBar = document.getElementById('attSummaryBar');
+      attSummaryBar.innerHTML = staffRecords.length > 0
+        ? `
+          <span class="att-pill att-present">✓ Present: ${pCount}</span>
+          <span class="att-pill att-half">◐ Half Day: ${hCount}</span>
+          <span class="att-pill att-absent">✕ Absent: ${aCount}</span>
+        `
+        : '';
+
+      const attListEl = document.getElementById('attendanceList');
+      if (staffRecords.length === 0) {
+        attListEl.innerHTML = `<div class="empty-state">No attendance logs available for this period.</div>`;
+      } else {
+        attListEl.innerHTML = staffRecords.map(a => {
+          const st = (a.status || 'P').toUpperCase();
+          const stClass = st.startsWith('P') ? 'present' : (st.startsWith('A') ? 'absent' : 'half');
+          const stLabel = st.startsWith('P') ? 'PRESENT' : (st.startsWith('A') ? 'ABSENT' : 'HALF DAY');
+          const timings = [
+            a.checkInTime ? 'In: ' + escapeHtml(a.checkInTime) : '',
+            a.checkOutTime ? 'Out: ' + escapeHtml(a.checkOutTime) : ''
+          ].filter(Boolean).join(' • ');
+          return `
+            <div class="att-row">
+              <div>
+                <div style="font-weight: 700; font-size: 13px;">${escapeHtml(a.dateString || 'Date')}</div>
+                <div style="font-size: 11px; color: var(--text-muted);">${timings}</div>
+              </div>
+              <span class="att-status att-${stClass}">${stLabel}</span>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    function switchTab(tab) {
+      const ledgerTab = document.getElementById('ledgerTab');
+      const attTab = document.getElementById('attendanceTab');
+      const ledgerBtn = document.getElementById('tabLedgerBtn');
+      const attBtn = document.getElementById('tabAttBtn');
+
+      if (tab === 'ledger') {
+        ledgerTab.style.display = 'block';
+        attTab.style.display = 'none';
+        ledgerBtn.classList.add('active');
+        attBtn.classList.remove('active');
+      } else {
+        ledgerTab.style.display = 'none';
+        attTab.style.display = 'block';
+        attBtn.classList.add('active');
+        ledgerBtn.classList.remove('active');
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      checkOptionalApk();
+      fetchFirebaseData(false);
+    });
+  </script>
+</body>
+</html>
