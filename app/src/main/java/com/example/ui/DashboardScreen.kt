@@ -99,6 +99,7 @@ import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -177,6 +178,7 @@ import com.example.data.ChecklistItemEntity
 import com.example.data.isTask
 import com.example.data.isChecklist
 import com.example.data.isDoneToday
+import com.example.data.StaffFeedbackEntity
 import com.example.data.SubtaskItem
 import com.example.data.getSubtasks
 import com.example.data.toJson
@@ -246,6 +248,7 @@ fun DashboardScreen(
     val customCategories by viewModel.customCategories.collectAsState()
     val deletedCategories by viewModel.deletedCategories.collectAsState()
     val allChecklistItems by viewModel.allChecklistItems.collectAsState()
+    val allStaffFeedback by viewModel.allStaffFeedback.collectAsState()
 
     var showGoogleSyncDialog by remember { mutableStateOf(false) }
     var showFirebaseSyncDialog by remember { mutableStateOf(false) }
@@ -832,7 +835,8 @@ fun DashboardScreen(
                         isFirebaseSyncing = isFirebaseSyncing,
                         firebaseLastSyncTime = firebaseLastSyncTime,
                         onSavePortalBaseUrl = { viewModel.setPortalBaseUrl(it) },
-                        onSyncToFirebaseNow = { viewModel.syncToFirebase(showFeedback = true) }
+                        onSyncToFirebaseNow = { viewModel.syncToFirebase(showFeedback = true) },
+                        onAutoSyncForShare = { viewModel.syncToFirebase(showFeedback = false) }
                     )
                 } else if (selectedClass == null) {
                     // Empty state warning
@@ -938,6 +942,9 @@ fun DashboardScreen(
                             },
                             onDeleteChecklistItem = { itemToDelete ->
                                 viewModel.deleteChecklistItem(itemToDelete, context)
+                            },
+                            onReorderChecklistItems = { orderedList ->
+                                viewModel.reorderChecklistSubset(orderedList)
                             }
                         )
                         3 -> ClassesStudentsView(
@@ -970,7 +977,8 @@ fun DashboardScreen(
                             portalBaseUrl = portalBaseUrl,
                             firebaseUrl = firebaseUrl,
                             firebaseWorkspace = firebaseWorkspace,
-                            onSavePortalBaseUrl = { viewModel.setPortalBaseUrl(it) }
+                            onSavePortalBaseUrl = { viewModel.setPortalBaseUrl(it) },
+                            onAutoSyncForShare = { viewModel.syncToFirebase(showFeedback = false) }
                         )
                         4 -> AnalyticsView(
                             activeClass = activeClass,
@@ -978,6 +986,13 @@ fun DashboardScreen(
                             students = currentStudents,
                             allRecords = allRecordsForSelectedClass,
                             allShifts = allShifts,
+                            allStaffFeedback = allStaffFeedback,
+                            onAddFeedback = { studentId, entryType, title, details, category, dateString ->
+                                viewModel.addStaffFeedback(studentId, entryType, title, details, category, dateString)
+                            },
+                            onUpdateFeedback = { viewModel.updateStaffFeedback(it) },
+                            onToggleFeedbackResolved = { viewModel.toggleFeedbackResolved(it) },
+                            onDeleteFeedback = { viewModel.deleteStaffFeedback(it) },
                             onUpdateRecord = { studentId, dateString, status, inT, outT, notes, reason ->
                                 viewModel.updateSpecificAttendanceRecord(
                                     classId = activeClass.id,
@@ -1948,7 +1963,7 @@ fun DashboardScreen(
         )
     }
 
-    // 360-Degree Complete Employee Profile Dialog (Attendance, T-Hisab, Payroll, Tasks)
+    // 360-Degree Complete Employee Profile Dialog (Attendance, T-Hisab, Payroll, Tasks, Complaint & Appreciation)
     if (showEmployeeProfileForStudent != null && selectedClass != null) {
         val targetStudent = showEmployeeProfileForStudent!!
         val studentShift = allShifts.find { it.id == targetStudent.shiftId }
@@ -1959,6 +1974,7 @@ fun DashboardScreen(
             allRecords = allRecordsForSelectedClass,
             allHisabEntries = allHisabLedgerEntries,
             allChecklistItems = allChecklistItems,
+            allStaffFeedback = allStaffFeedback,
             onDismiss = { showEmployeeProfileForStudent = null },
             onOpenAttendanceTab = {
                 showEmployeeProfileForStudent = null
@@ -1978,6 +1994,9 @@ fun DashboardScreen(
                 selectedChecklistScopeId = student.id
                 selectedTab = 1
             },
+            onToggleChecklistItem = { item ->
+                viewModel.toggleChecklistItem(item)
+            },
             onScheduleSmsForTask = { taskItem ->
                 showEmployeeProfileForStudent = null
                 selectedChecklistScopeId = taskItem.studentId
@@ -1985,7 +2004,13 @@ fun DashboardScreen(
             },
             onReorderTasks = { orderedList ->
                 viewModel.reorderChecklistSubset(orderedList)
-            }
+            },
+            onAddFeedback = { studentId, entryType, title, details, category, dateString ->
+                viewModel.addStaffFeedback(studentId, entryType, title, details, category, dateString)
+            },
+            onUpdateFeedback = { viewModel.updateStaffFeedback(it) },
+            onToggleFeedbackResolved = { viewModel.toggleFeedbackResolved(it) },
+            onDeleteFeedback = { viewModel.deleteStaffFeedback(it) }
         )
     }
 }
@@ -2018,7 +2043,8 @@ fun MarkAttendanceView(
     onRestoreDefaultItemsForStudent: (studentId: Long, studentName: String) -> Unit = { _, _ -> },
     onUpdateChecklistItem: (ChecklistItemEntity) -> Unit = {},
     onDeleteChecklistItem: (ChecklistItemEntity) -> Unit = {},
-    onToggleSubtask: (ChecklistItemEntity, String) -> Unit = { _, _ -> }
+    onToggleSubtask: (ChecklistItemEntity, String) -> Unit = { _, _ -> },
+    onReorderChecklistItems: (List<ChecklistItemEntity>) -> Unit = {}
 ) {
     val context = LocalContext.current
     val recordsList = records
@@ -2043,6 +2069,7 @@ fun MarkAttendanceView(
     var editingItemForAttendance by remember { mutableStateOf<ChecklistItemEntity?>(null) }
     var itemToDeleteForAttendance by remember { mutableStateOf<ChecklistItemEntity?>(null) }
     var itemForScheduleSmsForAttendance by remember { mutableStateOf<ChecklistItemEntity?>(null) }
+    var reorderDialogDataForAttendance by remember { mutableStateOf<Triple<String, List<ChecklistItemEntity>, Boolean>?>(null) }
 
     Column(
         modifier = Modifier
@@ -3133,8 +3160,42 @@ fun MarkAttendanceView(
                                         }
                                     }
 
-                                    // Quick actions on header: Add & Expand/Collapse
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                    // Quick actions on header: Reorder, Add & Expand/Collapse
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        if (employeeChecklist.size > 1) {
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = Color(0xFF7C3AED).copy(alpha = 0.12f),
+                                                modifier = Modifier
+                                                    .clickable {
+                                                        reorderDialogDataForAttendance = Triple(student.displayName, employeeChecklist, true)
+                                                    }
+                                                    .testTag("btn_reorder_checklist_${student.id}")
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.SwapVert,
+                                                        contentDescription = "Reorder Checklist",
+                                                        tint = Color(0xFF6D28D9),
+                                                        modifier = Modifier.size(13.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(2.dp))
+                                                    Text(
+                                                        text = "Reorder",
+                                                        fontSize = 10.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color(0xFF6D28D9)
+                                                    )
+                                                }
+                                            }
+                                        }
+
                                         Surface(
                                             shape = RoundedCornerShape(6.dp),
                                             color = Color(0xFF7C3AED).copy(alpha = 0.12f),
@@ -3163,8 +3224,6 @@ fun MarkAttendanceView(
                                                 )
                                             }
                                         }
-
-                                        Spacer(modifier = Modifier.width(4.dp))
 
                                         IconButton(
                                             onClick = { isChecklistExpanded = !isChecklistExpanded },
@@ -3217,10 +3276,31 @@ fun MarkAttendanceView(
                                             contentPadding = PaddingValues(vertical = 2.dp),
                                             modifier = Modifier.fillMaxWidth()
                                         ) {
-                                             items(employeeChecklist, key = { it.id }) { item ->
+                                            itemsIndexed(employeeChecklist, key = { _, it -> it.id }) { idx, item ->
+                                                val isDone = item.isDoneToday
+                                                val canLeft = idx > 0 && employeeChecklist[idx - 1].isDoneToday == isDone
+                                                val canRight = idx < employeeChecklist.size - 1 && employeeChecklist[idx + 1].isDoneToday == isDone
                                                 EmployeeItemRow(
                                                     item = item,
                                                     accentColor = Color(0xFF7C3AED),
+                                                    canMoveLeft = canLeft,
+                                                    canMoveRight = canRight,
+                                                    onMoveLeft = {
+                                                        if (canLeft) {
+                                                            val mutable = employeeChecklist.toMutableList()
+                                                            mutable[idx] = mutable[idx - 1]
+                                                            mutable[idx - 1] = item
+                                                            onReorderChecklistItems(mutable)
+                                                        }
+                                                    },
+                                                    onMoveRight = {
+                                                        if (canRight) {
+                                                            val mutable = employeeChecklist.toMutableList()
+                                                            mutable[idx] = mutable[idx + 1]
+                                                            mutable[idx + 1] = item
+                                                            onReorderChecklistItems(mutable)
+                                                        }
+                                                    },
                                                     onToggle = { onToggleChecklistItem(item) },
                                                     onEdit = { editingItemForAttendance = item },
                                                     onSendWhatsApp = {
@@ -3330,8 +3410,42 @@ fun MarkAttendanceView(
                                         }
                                     }
 
-                                    // Quick actions on header: Assign & Expand/Collapse
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                    // Quick actions on header: Reorder, Assign & Expand/Collapse
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        if (employeeTasks.size > 1) {
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = Color(0xFFEA580C).copy(alpha = 0.12f),
+                                                modifier = Modifier
+                                                    .clickable {
+                                                        reorderDialogDataForAttendance = Triple(student.displayName, employeeTasks, false)
+                                                    }
+                                                    .testTag("btn_reorder_tasks_${student.id}")
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.SwapVert,
+                                                        contentDescription = "Reorder Tasks",
+                                                        tint = Color(0xFFC2410C),
+                                                        modifier = Modifier.size(13.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(2.dp))
+                                                    Text(
+                                                        text = "Reorder",
+                                                        fontSize = 10.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color(0xFFC2410C)
+                                                    )
+                                                }
+                                            }
+                                        }
+
                                         Surface(
                                             shape = RoundedCornerShape(6.dp),
                                             color = Color(0xFFEA580C).copy(alpha = 0.12f),
@@ -3360,8 +3474,6 @@ fun MarkAttendanceView(
                                                 )
                                             }
                                         }
-
-                                        Spacer(modifier = Modifier.width(4.dp))
 
                                         IconButton(
                                             onClick = { isTasksExpanded = !isTasksExpanded },
@@ -3414,10 +3526,31 @@ fun MarkAttendanceView(
                                             contentPadding = PaddingValues(vertical = 2.dp),
                                             modifier = Modifier.fillMaxWidth()
                                         ) {
-                                             items(employeeTasks, key = { it.id }) { item ->
+                                            itemsIndexed(employeeTasks, key = { _, it -> it.id }) { idx, item ->
+                                                val isDone = item.isDoneToday
+                                                val canLeft = idx > 0 && employeeTasks[idx - 1].isDoneToday == isDone
+                                                val canRight = idx < employeeTasks.size - 1 && employeeTasks[idx + 1].isDoneToday == isDone
                                                 EmployeeItemRow(
                                                     item = item,
                                                     accentColor = Color(0xFFEA580C),
+                                                    canMoveLeft = canLeft,
+                                                    canMoveRight = canRight,
+                                                    onMoveLeft = {
+                                                        if (canLeft) {
+                                                            val mutable = employeeTasks.toMutableList()
+                                                            mutable[idx] = mutable[idx - 1]
+                                                            mutable[idx - 1] = item
+                                                            onReorderChecklistItems(mutable)
+                                                        }
+                                                    },
+                                                    onMoveRight = {
+                                                        if (canRight) {
+                                                            val mutable = employeeTasks.toMutableList()
+                                                            mutable[idx] = mutable[idx + 1]
+                                                            mutable[idx + 1] = item
+                                                            onReorderChecklistItems(mutable)
+                                                        }
+                                                    },
                                                     onToggle = { onToggleChecklistItem(item) },
                                                     onEdit = { editingItemForAttendance = item },
                                                     onSendWhatsApp = {
@@ -4334,12 +4467,32 @@ fun MarkAttendanceView(
             }
         )
     }
+
+    // Reorder Checklist or Tasks Dialog inside Take Attendance Tab
+    if (reorderDialogDataForAttendance != null) {
+        val (scopeTitle, itemsToReorder, isChecklistMode) = reorderDialogDataForAttendance!!
+        RearrangeEmployeeTasksDialog(
+            scopeName = "$scopeTitle • ${if (isChecklistMode) "Checklist" else "Tasks"}",
+            tasks = itemsToReorder,
+            dialogTitle = if (isChecklistMode) "Reorder Daily Checklist" else "Reorder Tasks",
+            itemLabel = if (isChecklistMode) "items" else "tasks",
+            onDismiss = { reorderDialogDataForAttendance = null },
+            onSaveOrder = { newOrderedList ->
+                onReorderChecklistItems(newOrderedList)
+                reorderDialogDataForAttendance = null
+            }
+        )
+    }
 }
 
 @Composable
 private fun EmployeeItemRow(
     item: ChecklistItemEntity,
     accentColor: Color,
+    canMoveLeft: Boolean = false,
+    canMoveRight: Boolean = false,
+    onMoveLeft: () -> Unit = {},
+    onMoveRight: () -> Unit = {},
     onToggle: () -> Unit,
     onEdit: () -> Unit,
     onSendWhatsApp: () -> Unit,
@@ -4549,11 +4702,47 @@ private fun EmployeeItemRow(
                     )
                 }
 
-                // 3 Small Action Icons: Edit, WhatsApp, SMS
+                // Small Action Icons: Move Left/Right (when reorderable), Edit, WhatsApp, SMS, Schedule
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (canMoveLeft || canMoveRight) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (canMoveLeft) accentColor.copy(alpha = 0.12f) else Color(0xFFF3F4F6),
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clickable(enabled = canMoveLeft, onClick = onMoveLeft)
+                                .testTag("btn_move_left_item_${item.id}")
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.ChevronLeft,
+                                    contentDescription = "Move Earlier",
+                                    tint = if (canMoveLeft) accentColor else Color(0xFFD1D5DB),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (canMoveRight) accentColor.copy(alpha = 0.12f) else Color(0xFFF3F4F6),
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clickable(enabled = canMoveRight, onClick = onMoveRight)
+                                .testTag("btn_move_right_item_${item.id}")
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.ChevronRight,
+                                    contentDescription = "Move Later",
+                                    tint = if (canMoveRight) accentColor else Color(0xFFD1D5DB),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
                     // Edit Button
                     Surface(
                         shape = RoundedCornerShape(6.dp),
@@ -4727,7 +4916,8 @@ fun ClassesStudentsView(
     portalBaseUrl: String = "",
     firebaseUrl: String = "https://gen-lang-client-0830360424-default-rtdb.firebaseio.com",
     firebaseWorkspace: String = "shop_attendance",
-    onSavePortalBaseUrl: (String) -> Unit = {}
+    onSavePortalBaseUrl: (String) -> Unit = {},
+    onAutoSyncForShare: (() -> Unit)? = null
 ) {
     var selectedSubSection by remember { mutableIntStateOf(0) } // 0 = Staff, 1 = Shifts
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -5391,6 +5581,9 @@ fun ClassesStudentsView(
 
     // Share Employee Link / Passbook Modal Dialog
     shareLinkStudent?.let { student ->
+        LaunchedEffect(student.id) {
+            onAutoSyncForShare?.invoke()
+        }
         val assignedClass = activeClass
         val formattedDate = SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date())
         var lockToStaffOnly by remember { mutableStateOf(true) }
@@ -5405,7 +5598,7 @@ fun ClassesStudentsView(
         var editingStaffPortal by remember(portalBaseUrl) { mutableStateOf(portalBaseUrl.isBlank()) }
 
         val summaryStatement = buildString {
-            appendLine("📋 *STAFF PROFILE & ATTENDANCE PASSBOOK*")
+            appendLine("📋 *STAFF PROFILE & T-HISAB PASSBOOK*")
             appendLine("━━━━━━━━━━━━━━━━━━━")
             appendLine("👤 *Staff:* ${student.name}")
             appendLine("🆔 *Emp ID:* ${student.rollNumber}")
@@ -5414,11 +5607,11 @@ fun ClassesStudentsView(
             appendLine("📅 *Date:* $formattedDate")
             appendLine("━━━━━━━━━━━━━━━━━━━")
             if (passbookLink.isNotBlank()) {
-                appendLine("🔗 *LIVE VIEW-ONLY PASSBOOK LINK:*")
+                appendLine("🔗 *LIVE VIEW-ONLY T-HISAB LINK:*")
                 appendLine(passbookLink)
                 appendLine("━━━━━━━━━━━━━━━━━━━")
             }
-            appendLine("Generated via Attendance & T-HISAB Manager")
+            appendLine("Generated via T-HISAB Manager")
         }
 
         AlertDialog(
@@ -5945,6 +6138,11 @@ fun AnalyticsView(
     students: List<StudentEntity>,
     allRecords: List<com.example.data.AttendanceRecordEntity> = emptyList(),
     allShifts: List<ShiftEntity> = emptyList(),
+    allStaffFeedback: List<StaffFeedbackEntity> = emptyList(),
+    onAddFeedback: (studentId: Long, entryType: String, title: String, details: String, category: String, dateString: String) -> Unit = { _, _, _, _, _, _ -> },
+    onUpdateFeedback: (StaffFeedbackEntity) -> Unit = {},
+    onToggleFeedbackResolved: (StaffFeedbackEntity) -> Unit = {},
+    onDeleteFeedback: (StaffFeedbackEntity) -> Unit = {},
     onUpdateRecord: (studentId: Long, dateString: String, status: String, checkInTime: String, checkOutTime: String, notes: String, reason: String) -> Unit = { _, _, _, _, _, _, _ -> },
     onViewReport: (StudentEntity) -> Unit = {}
 ) {
@@ -6080,6 +6278,11 @@ fun AnalyticsView(
                     activeClass = activeClass,
                     records = allRecords,
                     allShifts = allShifts,
+                    allStaffFeedback = allStaffFeedback,
+                    onAddFeedback = onAddFeedback,
+                    onUpdateFeedback = onUpdateFeedback,
+                    onToggleFeedbackResolved = onToggleFeedbackResolved,
+                    onDeleteFeedback = onDeleteFeedback,
                     onUpdateRecord = onUpdateRecord,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -7497,9 +7700,19 @@ fun EmployeeReportContentView(
     activeClass: ClassEntity,
     records: List<com.example.data.AttendanceRecordEntity>,
     allShifts: List<ShiftEntity>,
+    allStaffFeedback: List<StaffFeedbackEntity> = emptyList(),
+    onAddFeedback: (studentId: Long, entryType: String, title: String, details: String, category: String, dateString: String) -> Unit = { _, _, _, _, _, _ -> },
+    onUpdateFeedback: (StaffFeedbackEntity) -> Unit = {},
+    onToggleFeedbackResolved: (StaffFeedbackEntity) -> Unit = {},
+    onDeleteFeedback: (StaffFeedbackEntity) -> Unit = {},
     onUpdateRecord: (studentId: Long, dateString: String, status: String, checkInTime: String, checkOutTime: String, notes: String, reason: String) -> Unit = { _, _, _, _, _, _, _ -> },
     modifier: Modifier = Modifier
 ) {
+    // 0 = Attendance Report, 1 = Complaint & Appreciation
+    var employeeSubTab by remember(selectedStudent.id) { mutableIntStateOf(0) }
+    val empFeedbackCount = remember(allStaffFeedback, selectedStudent.id) {
+        allStaffFeedback.count { it.studentId == selectedStudent.id }
+    }
     var recipientPhone by remember(selectedStudent) { mutableStateOf(selectedStudent.phone) }
     val calendar = remember { Calendar.getInstance() }
     var currentYear by remember { mutableIntStateOf(calendar.get(Calendar.YEAR)) }
@@ -8015,10 +8228,99 @@ fun EmployeeReportContentView(
         )
     }
 
-    LazyColumn(
-        modifier = modifier.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    Column(modifier = modifier.fillMaxSize()) {
+        // Sub-Tab Switcher inside every Employee Tab: Attendance Report vs Complaint & Appreciation
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = if (employeeSubTab == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(42.dp)
+                    .clickable { employeeSubTab = 0 }
+                    .testTag("btn_emp_subtab_attendance_${selectedStudent.id}")
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Assessment,
+                        contentDescription = null,
+                        tint = if (employeeSubTab == 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Attendance Report",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (employeeSubTab == 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = if (employeeSubTab == 1) Color(0xFF15803D) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(42.dp)
+                    .clickable { employeeSubTab = 1 }
+                    .testTag("btn_emp_subtab_feedback_${selectedStudent.id}")
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ThumbUp,
+                        contentDescription = null,
+                        tint = if (employeeSubTab == 1) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Complaint & Praise ($empFeedbackCount)",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (employeeSubTab == 1) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+
+        if (employeeSubTab == 1) {
+            StaffFeedbackTabContent(
+                student = selectedStudent,
+                feedbackList = allStaffFeedback,
+                onAddFeedback = onAddFeedback,
+                onUpdateFeedback = onUpdateFeedback,
+                onToggleResolved = onToggleFeedbackResolved,
+                onDeleteFeedback = onDeleteFeedback,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
         // Month Selector Card
         item {
             Card(
@@ -8463,6 +8765,8 @@ fun EmployeeReportContentView(
                     }
                 }
             }
+        }
+        }
         }
     }
 }

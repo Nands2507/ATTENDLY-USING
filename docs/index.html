@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Staff T-Hisab & Attendance Passbook</title>
+  <title>Staff T-Hisab Passbook</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -267,34 +267,6 @@
       margin-top: 2px;
     }
 
-    /* Navigation Tabs */
-    .tab-bar {
-      display: flex;
-      background: #e2e8f0;
-      padding: 4px;
-      border-radius: 12px;
-      gap: 4px;
-    }
-
-    .tab-btn {
-      flex: 1;
-      border: none;
-      background: transparent;
-      padding: 9px 12px;
-      border-radius: 9px;
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--text-muted);
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .tab-btn.active {
-      background: #ffffff;
-      color: var(--primary);
-      box-shadow: var(--shadow-sm);
-    }
-
     /* Lists */
     .list-container {
       display: flex;
@@ -410,44 +382,6 @@
       margin-left: 8px;
     }
 
-    /* Attendance */
-    .att-summary-bar {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 10px;
-      flex-wrap: wrap;
-    }
-
-    .att-pill {
-      font-size: 11px;
-      font-weight: 800;
-      padding: 4px 10px;
-      border-radius: 999px;
-    }
-
-    .att-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 12px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .att-row:last-child {
-      border-bottom: none;
-    }
-
-    .att-status {
-      font-size: 11px;
-      font-weight: 800;
-      padding: 3px 8px;
-      border-radius: 6px;
-    }
-
-    .att-present { background: var(--success-bg); color: var(--success); }
-    .att-absent { background: var(--danger-bg); color: var(--danger); }
-    .att-half { background: var(--warning-bg); color: var(--warning); }
-
     /* States */
     .empty-state {
       text-align: center;
@@ -503,7 +437,7 @@
   <div class="container">
     <!-- Header -->
     <div class="header-bar">
-      <div class="badge-live">🔒 View-Only Passbook (Not Editable)</div>
+      <div class="badge-live">🔒 View-Only T-Hisab Passbook (Not Editable)</div>
       <div class="header-title" id="shopName">Shop T-Hisab Portal</div>
       <div class="header-sub" id="syncTime">Connecting to cloud database...</div>
     </div>
@@ -564,27 +498,18 @@
         </div>
       </div>
 
-      <!-- Navigation Tabs -->
-      <div class="tab-bar">
-        <button class="tab-btn active" id="tabLedgerBtn" onclick="switchTab('ledger')">Hisab & Sarees</button>
-        <button class="tab-btn" id="tabAttBtn" onclick="switchTab('attendance')">Attendance Log</button>
+      <!-- T-Hisab Statement Section -->
+      <div style="font-size: 12px; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 4px;">
+        Hisab & Saree Statement
       </div>
 
-      <!-- Tab 1: Hisab & Sarees -->
+      <!-- Hisab & Sarees Ledger -->
       <div id="ledgerTab">
         <div class="list-container" id="ledgerList"></div>
       </div>
 
-      <!-- Tab 2: Attendance History -->
-      <div id="attendanceTab" style="display: none;">
-        <div class="att-summary-bar" id="attSummaryBar"></div>
-        <div class="card" style="padding: 4px;">
-          <div id="attendanceList"></div>
-        </div>
-      </div>
-
       <button class="refresh-btn" onclick="fetchFirebaseData(true)">
-        🔄 Refresh Live Passbook
+        🔄 Refresh Live T-Hisab
       </button>
     </div>
 
@@ -602,7 +527,7 @@
     </div>
 
     <div class="footer">
-      🔒 View-Only Statement • Only the Shop Owner can edit records
+      🔒 View-Only T-Hisab Statement • Only the Shop Owner can edit records
     </div>
   </div>
 
@@ -635,9 +560,35 @@
     const FIREBASE_BASE_URL = sanitizeFirebaseUrl(urlParams.get('fb'));
     const WORKSPACE_KEY = sanitizeWorkspace(urlParams.get('ws') || urlParams.get('workspace'));
 
+    function toArray(val) {
+      if (Array.isArray(val)) return val.filter(Boolean);
+      if (val && typeof val === 'object') return Object.values(val).filter(Boolean);
+      return [];
+    }
+
+    function normalizeMonthParam(raw) {
+      if (!raw) return "ALL";
+      const s = String(raw).trim();
+      if (!s || s.toUpperCase() === "ALL") return "ALL";
+      const shortMonths = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const fullMonths = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+      const ym = s.match(/^(\d{4})[-\/](\d{1,2})$/);
+      if (ym) {
+        const mIdx = parseInt(ym[2], 10) - 1;
+        if (mIdx >= 0 && mIdx < 12) return `${shortMonths[mIdx]} ${ym[1]}`;
+      }
+      const fullMatch = s.match(/^([a-zA-Z]+)\s+(\d{4})$/);
+      if (fullMatch) {
+        const idx = fullMonths.indexOf(fullMatch[1].toLowerCase());
+        if (idx !== -1) return `${shortMonths[idx]} ${fullMatch[2]}`;
+      }
+      return s;
+    }
+
     let cloudData = null;
     let selectedStudentId = null;
-    let selectedMonthFilter = paramMonth ? paramMonth.trim() : "ALL";
+    let userSelectedMonth = false;
+    let selectedMonthFilter = normalizeMonthParam(paramMonth);
 
     function escapeHtml(str) {
       return String(str == null ? "" : str)
@@ -658,6 +609,10 @@
         m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
         if (m) {
           return new Date(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+        }
+        const parsed = Date.parse(s);
+        if (!isNaN(parsed)) {
+          return new Date(parsed);
         }
       }
       if (timestamp && Number(timestamp) > 0) {
@@ -744,7 +699,7 @@
 
     function populateStaffDropdown() {
       const select = document.getElementById('staffSelect');
-      const students = cloudData.students || [];
+      const students = toArray(cloudData.students);
 
       select.innerHTML = '<option value="">-- Choose Employee --</option>';
 
@@ -813,15 +768,15 @@
     }
 
     function selectMonthFilter(monthKey) {
+      userSelectedMonth = true;
       selectedMonthFilter = monthKey;
       renderStaffData();
     }
 
     function renderStaffData() {
-      const students = cloudData.students || [];
-      const classes = cloudData.classes || [];
-      const records = cloudData.records || [];
-      const hisabEntries = cloudData.hisabEntries || [];
+      const students = toArray(cloudData.students);
+      const classes = toArray(cloudData.classes);
+      const hisabEntries = toArray(cloudData.hisabEntries);
       const currentStudent = students.find(s => String(s.id) === String(selectedStudentId));
 
       if (!currentStudent) return;
@@ -840,88 +795,46 @@
         staffMetaEl.style.display = 'none';
       }
 
-      // Collect all entries for this employee first
+      // Collect T-Hisab entries only (no attendance details shared)
       const rawLedgerList = [];
       const staffHisab = hisabEntries.filter(e => String(e.studentId) === String(selectedStudentId));
 
-      if (staffHisab.length > 0) {
-        staffHisab.forEach(e => {
-          const type = (e.entryType || 'SALES').toUpperCase();
-          const earned = parseFloat(e.totalEarned) || 0;
-          const advance = parseFloat(e.advancePaid) || 0;
-          const pieces = parseInt(e.totalPieces, 10) || 0;
-          let breakdown = [];
-          if (e.itemBreakdownJson) {
-            try {
-              const parsed = JSON.parse(e.itemBreakdownJson);
-              if (Array.isArray(parsed)) breakdown = parsed;
-            } catch (_) {}
-          }
-          rawLedgerList.push({
-            date: e.dateString || 'Unknown',
-            monthKey: getMonthKey(e.dateString, e.timestamp),
-            type: type,
-            pieces: pieces,
-            amount: type === 'SALES' ? earned : advance,
-            notes: e.notes || '',
-            breakdown: breakdown,
-            timestamp: e.timestamp || 0
-          });
+      staffHisab.forEach(e => {
+        const type = (e.entryType || 'SALES').toUpperCase();
+        const earned = parseFloat(e.totalEarned) || 0;
+        const advance = parseFloat(e.advancePaid) || 0;
+        const pieces = parseInt(e.totalPieces, 10) || 0;
+        let breakdown = [];
+        if (e.itemBreakdownJson) {
+          try {
+            const parsed = JSON.parse(e.itemBreakdownJson);
+            if (Array.isArray(parsed)) breakdown = parsed;
+          } catch (_) {}
+        }
+        rawLedgerList.push({
+          date: e.dateString || 'Unknown',
+          monthKey: getMonthKey(e.dateString, e.timestamp),
+          type: type,
+          pieces: pieces,
+          amount: type === 'SALES' ? earned : advance,
+          notes: e.notes || '',
+          breakdown: breakdown,
+          timestamp: e.timestamp || 0
         });
-      } else {
-        // Fallback: parse notes from attendance records
-        const staffRecordsForHisab = records.filter(r => String(r.studentId) === String(selectedStudentId));
-        staffRecordsForHisab.forEach(r => {
-          if (r.notes) {
-            const n = r.notes;
-            if (n.includes("[SALES]")) {
-              const pcsMatch = n.match(/(\d+)\s*(?:pcs|pieces|sarees)/i);
-              const amtMatch = n.match(/(?:Rs\.?|₹)\s*([\d.]+)/i);
-              const pcs = pcsMatch ? parseInt(pcsMatch[1], 10) : 0;
-              const amt = amtMatch ? parseFloat(amtMatch[1]) : 0;
-              rawLedgerList.push({
-                date: r.dateString,
-                monthKey: getMonthKey(r.dateString, r.timestamp),
-                type: 'SALES',
-                pieces: pcs,
-                amount: amt,
-                notes: n.replace(/\[SALES\]/g, '').trim(),
-                breakdown: [],
-                timestamp: r.timestamp || 0
-              });
-            } else if (n.includes("[ADVANCE]")) {
-              const amtMatch = n.match(/(?:Rs\.?|₹)\s*([\d.]+)/i);
-              const amt = amtMatch ? parseFloat(amtMatch[1]) : 0;
-              rawLedgerList.push({
-                date: r.dateString,
-                monthKey: getMonthKey(r.dateString, r.timestamp),
-                type: 'ADVANCE',
-                pieces: 0,
-                amount: amt,
-                notes: n.replace(/\[ADVANCE\]/g, '').trim(),
-                breakdown: [],
-                timestamp: r.timestamp || 0
-              });
-            }
-          }
-        });
-      }
+      });
 
-      const staffRecordsAll = records.filter(r => String(r.studentId) === String(selectedStudentId));
-
-      // Build distinct months list across Hisab & Attendance
+      // Build distinct months list from T-Hisab entries only
       const monthMap = new Map();
       rawLedgerList.forEach(e => {
         if (e.monthKey !== "Other") monthMap.set(e.monthKey, getSortMillis(e.date, e.timestamp));
-      });
-      staffRecordsAll.forEach(r => {
-        const mk = getMonthKey(r.dateString, r.timestamp);
-        if (mk !== "Other" && !monthMap.has(mk)) monthMap.set(mk, getSortMillis(r.dateString, r.timestamp));
       });
       const distinctMonths = Array.from(monthMap.entries())
         .sort((a, b) => b[1] - a[1])
         .map(entry => entry[0]);
 
+      if (!userSelectedMonth && paramMonth) {
+        selectedMonthFilter = normalizeMonthParam(paramMonth);
+      }
       if (selectedMonthFilter !== "ALL") {
         const matched = distinctMonths.find(m => m.toLowerCase() === selectedMonthFilter.toLowerCase());
         if (matched) selectedMonthFilter = matched;
@@ -941,10 +854,6 @@
       const ledgerList = selectedMonthFilter === "ALL"
         ? rawLedgerList
         : rawLedgerList.filter(e => e.monthKey === selectedMonthFilter);
-
-      const staffRecords = selectedMonthFilter === "ALL"
-        ? staffRecordsAll
-        : staffRecordsAll.filter(r => getMonthKey(r.dateString, r.timestamp) === selectedMonthFilter);
 
       // Compute KPI totals
       let totalEarned = 0;
@@ -1015,68 +924,6 @@
             </div>
           `;
         }).join('');
-      }
-
-      // Render Attendance Records & Summary
-      staffRecords.sort((a, b) => getSortMillis(b.dateString, b.timestamp) - getSortMillis(a.dateString, a.timestamp));
-      let pCount = 0, aCount = 0, hCount = 0;
-      staffRecords.forEach(a => {
-        const st = (a.status || 'P').toUpperCase();
-        if (st.startsWith('P')) pCount++;
-        else if (st.startsWith('A')) aCount++;
-        else hCount++;
-      });
-
-      const attSummaryBar = document.getElementById('attSummaryBar');
-      attSummaryBar.innerHTML = staffRecords.length > 0
-        ? `
-          <span class="att-pill att-present">✓ Present: ${pCount}</span>
-          <span class="att-pill att-half">◐ Half Day: ${hCount}</span>
-          <span class="att-pill att-absent">✕ Absent: ${aCount}</span>
-        `
-        : '';
-
-      const attListEl = document.getElementById('attendanceList');
-      if (staffRecords.length === 0) {
-        attListEl.innerHTML = `<div class="empty-state">No attendance logs available for this period.</div>`;
-      } else {
-        attListEl.innerHTML = staffRecords.map(a => {
-          const st = (a.status || 'P').toUpperCase();
-          const stClass = st.startsWith('P') ? 'present' : (st.startsWith('A') ? 'absent' : 'half');
-          const stLabel = st.startsWith('P') ? 'PRESENT' : (st.startsWith('A') ? 'ABSENT' : 'HALF DAY');
-          const timings = [
-            a.checkInTime ? 'In: ' + escapeHtml(a.checkInTime) : '',
-            a.checkOutTime ? 'Out: ' + escapeHtml(a.checkOutTime) : ''
-          ].filter(Boolean).join(' • ');
-          return `
-            <div class="att-row">
-              <div>
-                <div style="font-weight: 700; font-size: 13px;">${escapeHtml(a.dateString || 'Date')}</div>
-                <div style="font-size: 11px; color: var(--text-muted);">${timings}</div>
-              </div>
-              <span class="att-status att-${stClass}">${stLabel}</span>
-            </div>
-          `;
-        }).join('');
-      }
-    }
-
-    function switchTab(tab) {
-      const ledgerTab = document.getElementById('ledgerTab');
-      const attTab = document.getElementById('attendanceTab');
-      const ledgerBtn = document.getElementById('tabLedgerBtn');
-      const attBtn = document.getElementById('tabAttBtn');
-
-      if (tab === 'ledger') {
-        ledgerTab.style.display = 'block';
-        attTab.style.display = 'none';
-        ledgerBtn.classList.add('active');
-        attBtn.classList.remove('active');
-      } else {
-        ledgerTab.style.display = 'none';
-        attTab.style.display = 'block';
-        attBtn.classList.add('active');
-        ledgerBtn.classList.remove('active');
       }
     }
 

@@ -14,6 +14,7 @@ import com.example.data.ShiftEntity
 import com.example.data.HisabProductEntity
 import com.example.data.HisabLedgerEntryEntity
 import com.example.data.ChecklistItemEntity
+import com.example.data.StaffFeedbackEntity
 import com.example.data.cleanEmployeeName
 import com.example.data.displayName
 import com.example.data.isChecklist
@@ -39,6 +40,8 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -66,10 +69,12 @@ class AttendanceViewModel(application: Application) : AndroidViewModel(applicati
         database.shiftDao(),
         database.hisabProductDao(),
         database.hisabLedgerEntryDao(),
-        database.checklistItemDao()
+        database.checklistItemDao(),
+        database.staffFeedbackDao()
     )
 
     private val sharedPrefs = application.getSharedPreferences("google_sheets_pref", Context.MODE_PRIVATE)
+    private val backupSyncMutex = Mutex()
 
     private val _customCategories = MutableStateFlow(
         sharedPrefs.getStringSet("hisab_custom_categories", null)?.toSet() ?: setOf("SAREE", "MEN", "WOMEN", "INNERWEAR", "GENERAL")
@@ -143,6 +148,9 @@ class AttendanceViewModel(application: Application) : AndroidViewModel(applicati
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allChecklistItems: StateFlow<List<ChecklistItemEntity>> = repository.allChecklistItems
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val allStaffFeedback: StateFlow<List<StaffFeedbackEntity>> = repository.allStaffFeedback
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _selectedHisabStudent = MutableStateFlow<StudentEntity?>(null)
@@ -332,6 +340,7 @@ class AttendanceViewModel(application: Application) : AndroidViewModel(applicati
                     subtasksJson = subtasksJson.trim()
                 )
             )
+            runAutoBackupAndSync()
         }
     }
 
@@ -411,6 +420,7 @@ class AttendanceViewModel(application: Application) : AndroidViewModel(applicati
     fun updateChecklistItem(item: ChecklistItemEntity) {
         viewModelScope.launch {
             repository.updateChecklistItem(item)
+            runAutoBackupAndSync()
         }
     }
 
@@ -634,18 +644,72 @@ class AttendanceViewModel(application: Application) : AndroidViewModel(applicati
                 context?.let { com.example.reminder.TaskReminderHelper.cancelReminder(it, item.id) }
             }
             repository.deleteChecklistItem(item)
+            runAutoBackupAndSync()
         }
     }
 
     fun resetAllChecklist() {
         viewModelScope.launch {
             repository.resetAllChecklistCompletions()
+            runAutoBackupAndSync()
         }
     }
 
     fun resetChecklistForScope(studentId: Long) {
         viewModelScope.launch {
             repository.resetChecklistForStudent(studentId)
+            runAutoBackupAndSync()
+        }
+    }
+
+    // =========================================================================
+    // STAFF COMPLAINT & APPRECIATION CRUD
+    // =========================================================================
+    fun addStaffFeedback(
+        studentId: Long,
+        entryType: String,
+        title: String,
+        details: String,
+        category: String,
+        dateString: String
+    ) {
+        if (title.isBlank()) return
+        viewModelScope.launch {
+            val item = StaffFeedbackEntity(
+                studentId = studentId,
+                entryType = entryType,
+                title = title.trim(),
+                details = details.trim(),
+                category = category.trim().ifBlank { "GENERAL" },
+                dateString = dateString.ifBlank {
+                    SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                },
+                isResolved = false,
+                timestamp = System.currentTimeMillis()
+            )
+            repository.insertStaffFeedback(item)
+            triggerAutoBackup()
+        }
+    }
+
+    fun updateStaffFeedback(feedback: StaffFeedbackEntity) {
+        viewModelScope.launch {
+            repository.updateStaffFeedback(feedback)
+            triggerAutoBackup()
+        }
+    }
+
+    fun toggleFeedbackResolved(feedback: StaffFeedbackEntity) {
+        viewModelScope.launch {
+            repository.updateStaffFeedback(feedback.copy(isResolved = !feedback.isResolved))
+            triggerAutoBackup()
+        }
+    }
+
+    fun deleteStaffFeedback(feedback: StaffFeedbackEntity) {
+        viewModelScope.launch {
+            repository.deleteStaffFeedback(feedback)
+            triggerAutoBackup()
         }
     }
 
@@ -683,6 +747,7 @@ class AttendanceViewModel(application: Application) : AndroidViewModel(applicati
                 HisabProductEntity(name = "PIECES", category = "GENERAL", ratePerPiece = 8.0, displayOrder = 9)
             )
             repository.insertHisabProducts(defaults)
+            runAutoBackupAndSync()
         }
     }
 
@@ -698,18 +763,21 @@ class AttendanceViewModel(application: Application) : AndroidViewModel(applicati
                     displayOrder = newOrder
                 )
             )
+            runAutoBackupAndSync()
         }
     }
 
     fun updateHisabProduct(product: HisabProductEntity) {
         viewModelScope.launch {
             repository.updateHisabProduct(product)
+            runAutoBackupAndSync()
         }
     }
 
     fun deleteHisabProduct(product: HisabProductEntity) {
         viewModelScope.launch {
             repository.deleteHisabProduct(product)
+            runAutoBackupAndSync()
         }
     }
 
@@ -751,6 +819,9 @@ class AttendanceViewModel(application: Application) : AndroidViewModel(applicati
             for (item in toUpdate) {
                 repository.updateHisabProduct(item.copy(category = trimmedNew))
             }
+            if (toUpdate.isNotEmpty()) {
+                runAutoBackupAndSync()
+            }
         }
     }
 
@@ -776,6 +847,9 @@ class AttendanceViewModel(application: Application) : AndroidViewModel(applicati
                 } else {
                     repository.updateHisabProduct(item.copy(category = fallback))
                 }
+            }
+            if (matching.isNotEmpty()) {
+                runAutoBackupAndSync()
             }
         }
     }
@@ -867,6 +941,7 @@ class AttendanceViewModel(application: Application) : AndroidViewModel(applicati
                     timestamp = System.currentTimeMillis()
                 )
             )
+            runAutoBackupAndSync()
         }
     }
 
@@ -890,18 +965,21 @@ class AttendanceViewModel(application: Application) : AndroidViewModel(applicati
                     timestamp = System.currentTimeMillis()
                 )
             )
+            runAutoBackupAndSync()
         }
     }
 
     fun updateHisabEntry(entry: HisabLedgerEntryEntity) {
         viewModelScope.launch {
             repository.updateHisabEntry(entry)
+            runAutoBackupAndSync()
         }
     }
 
     fun deleteHisabEntry(entry: HisabLedgerEntryEntity) {
         viewModelScope.launch {
             repository.deleteHisabEntry(entry)
+            runAutoBackupAndSync()
         }
     }
 
@@ -1064,10 +1142,10 @@ class AttendanceViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    private fun triggerAutoBackup() {
-        viewModelScope.launch {
+    private suspend fun runAutoBackupAndSync() {
+        backupSyncMutex.withLock {
             com.example.data.BackupRestoreHelper.autoSaveBackup(getApplication(), repository)
-            
+
             // Automatic Cloud Sync via Firebase if configured & enabled
             if (_firebaseAutoSyncEnabled.value && _firebaseUrl.value.isNotBlank()) {
                 val syncResult = com.example.sync.FirebaseSyncHelper.syncToFirebase(
@@ -1085,6 +1163,12 @@ class AttendanceViewModel(application: Application) : AndroidViewModel(applicati
                     _firebaseSyncStatus.value = "Auto-sync notice: ${err.message}"
                 }
             }
+        }
+    }
+
+    private fun triggerAutoBackup() {
+        viewModelScope.launch {
+            runAutoBackupAndSync()
         }
     }
 
@@ -1958,29 +2042,37 @@ class AttendanceViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             val url = _firebaseUrl.value
             if (url.isBlank()) {
-                _firebaseSyncStatus.value = "Error: Please enter your Firebase Database URL first."
+                if (showFeedback) {
+                    _firebaseSyncStatus.value = "Error: Please enter your Firebase Database URL first."
+                }
                 return@launch
             }
 
-            _isFirebaseSyncing.value = true
-            if (showFeedback) _firebaseSyncStatus.value = "Connecting and syncing to Firebase cloud..."
+            backupSyncMutex.withLock {
+                _isFirebaseSyncing.value = true
+                if (showFeedback) _firebaseSyncStatus.value = "Connecting and syncing to Firebase cloud..."
 
-            val res = com.example.sync.FirebaseSyncHelper.syncToFirebase(
-                firebaseUrl = url,
-                workspaceKey = _firebaseWorkspace.value,
-                authToken = _firebaseAuthToken.value,
-                repository = repository
-            )
+                val res = com.example.sync.FirebaseSyncHelper.syncToFirebase(
+                    firebaseUrl = url,
+                    workspaceKey = _firebaseWorkspace.value,
+                    authToken = _firebaseAuthToken.value,
+                    repository = repository
+                )
 
-            res.onSuccess { msg ->
-                val now = System.currentTimeMillis()
-                _firebaseLastSyncTime.value = now
-                sharedPrefs.edit().putLong("firebase_last_sync_time", now).apply()
-                _firebaseSyncStatus.value = msg
-            }.onFailure { err ->
-                _firebaseSyncStatus.value = "Firebase Sync Failed: ${err.message}"
+                res.onSuccess { msg ->
+                    val now = System.currentTimeMillis()
+                    _firebaseLastSyncTime.value = now
+                    sharedPrefs.edit().putLong("firebase_last_sync_time", now).apply()
+                    if (showFeedback) {
+                        _firebaseSyncStatus.value = msg
+                    }
+                }.onFailure { err ->
+                    if (showFeedback) {
+                        _firebaseSyncStatus.value = "Firebase Sync Failed: ${err.message}"
+                    }
+                }
+                _isFirebaseSyncing.value = false
             }
-            _isFirebaseSyncing.value = false
         }
     }
 

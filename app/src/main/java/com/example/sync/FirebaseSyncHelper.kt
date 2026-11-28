@@ -78,6 +78,7 @@ object FirebaseSyncHelper {
             val records = repository.getAllRecordsList()
             val hisabProducts = repository.getAllHisabProductsList()
             val hisabEntries = repository.getAllHisabEntriesList()
+            val staffFeedback = repository.getAllStaffFeedbackList()
 
             val rootJson = JSONObject().apply {
                 put("version", 1)
@@ -171,6 +172,23 @@ object FirebaseSyncHelper {
                     })
                 }
                 put("hisabEntries", entriesArray)
+
+                // Staff Feedback (Owner Cloud Backup)
+                val feedbackArray = JSONArray()
+                staffFeedback.forEach { fb ->
+                    feedbackArray.put(JSONObject().apply {
+                        put("id", fb.id)
+                        put("studentId", fb.studentId)
+                        put("entryType", fb.entryType)
+                        put("title", fb.title)
+                        put("details", fb.details)
+                        put("category", fb.category)
+                        put("dateString", fb.dateString)
+                        put("isResolved", fb.isResolved)
+                        put("timestamp", fb.timestamp)
+                    })
+                }
+                put("staffFeedback", feedbackArray)
             }
 
             val requestBody = rootJson.toString().toRequestBody(JSON_MEDIA_TYPE)

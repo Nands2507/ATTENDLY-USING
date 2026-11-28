@@ -287,4 +287,26 @@ fun ChecklistItemEntity.getDailyCommentHistory(): List<DailyCommentHistoryItem> 
     }
 }
 
-
+@Entity(
+    tableName = "staff_feedback",
+    foreignKeys = [
+        ForeignKey(
+            entity = StudentEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["studentId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["studentId"])]
+)
+data class StaffFeedbackEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val studentId: Long,
+    val entryType: String = "APPRECIATION", // "APPRECIATION" or "COMPLAINT"
+    val title: String,
+    val details: String = "",
+    val category: String = "GENERAL", // "WORK", "BEHAVIOUR", "PUNCTUALITY", "CUSTOMER", "SALES", "GENERAL"
+    val dateString: String, // "yyyy-MM-dd"
+    val isResolved: Boolean = false,
+    val timestamp: Long = System.currentTimeMillis()
+)

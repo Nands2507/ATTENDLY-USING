@@ -10,7 +10,8 @@ class AttendanceRepository(
     private val shiftDao: ShiftDao? = null,
     private val hisabProductDao: HisabProductDao? = null,
     private val hisabLedgerEntryDao: HisabLedgerEntryDao? = null,
-    private val checklistItemDao: ChecklistItemDao? = null
+    private val checklistItemDao: ChecklistItemDao? = null,
+    private val staffFeedbackDao: StaffFeedbackDao? = null
 ) {
     val allClasses: Flow<List<ClassEntity>> = classDao?.getAllClasses() ?: flowOf(emptyList())
     val allShifts: Flow<List<ShiftEntity>> = shiftDao?.getAllShifts() ?: flowOf(emptyList())
@@ -18,6 +19,7 @@ class AttendanceRepository(
     val allHisabProducts: Flow<List<HisabProductEntity>> = hisabProductDao?.getAllProducts() ?: flowOf(emptyList())
     val allHisabLedgerEntries: Flow<List<HisabLedgerEntryEntity>> = hisabLedgerEntryDao?.getAllEntries() ?: flowOf(emptyList())
     val allChecklistItems: Flow<List<ChecklistItemEntity>> = checklistItemDao?.getAllItems() ?: flowOf(emptyList())
+    val allStaffFeedback: Flow<List<StaffFeedbackEntity>> = staffFeedbackDao?.getAllFeedback() ?: flowOf(emptyList())
 
     // Classes
     suspend fun getAllClassesList(): List<ClassEntity> = classDao?.getAllClassesList() ?: emptyList()
@@ -116,4 +118,16 @@ class AttendanceRepository(
         checklistItemDao?.resetAllCompletions() ?: Unit
     suspend fun resetChecklistForStudent(studentId: Long) =
         checklistItemDao?.resetCompletionsForStudent(studentId) ?: Unit
+
+    // Staff Feedback (Complaints & Appreciations)
+    suspend fun getAllStaffFeedbackList(): List<StaffFeedbackEntity> =
+        staffFeedbackDao?.getAllFeedbackList() ?: emptyList()
+    suspend fun insertStaffFeedback(feedback: StaffFeedbackEntity): Long =
+        staffFeedbackDao?.insertFeedback(feedback) ?: -1L
+    suspend fun insertStaffFeedbackList(items: List<StaffFeedbackEntity>) =
+        staffFeedbackDao?.insertFeedbackList(items) ?: Unit
+    suspend fun updateStaffFeedback(feedback: StaffFeedbackEntity) =
+        staffFeedbackDao?.updateFeedback(feedback) ?: Unit
+    suspend fun deleteStaffFeedback(feedback: StaffFeedbackEntity) =
+        staffFeedbackDao?.deleteFeedback(feedback) ?: Unit
 }

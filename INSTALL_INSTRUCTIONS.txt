@@ -40,7 +40,7 @@ GITHUB PAGES LIVE T-HISAB PASSBOOK SETUP (FOR STAFF SHARING):
 3. Copy your live GitHub Pages URL (e.g. https://username.github.io/repo)
    and paste it inside the app's Share Statement dialog (or Firebase Sync).
 4. Shared links include "&lock=1" so each staff member sees ONLY their own
-   view-only T-Hisab & Attendance. For strict Owner-Only cloud writes, set
+   view-only T-Hisab statement (Sarees, Earnings, Advances & Balance — without attendance details). For strict Owner-Only cloud writes, set
    Firebase Realtime Database Rules to ".read": true, ".write": false and
    save your Firebase Database Secret inside the app's Firebase Sync settings.
 ========================================================================

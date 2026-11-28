@@ -18,9 +18,10 @@ import java.io.FileOutputStream
         ShiftEntity::class,
         HisabProductEntity::class,
         HisabLedgerEntryEntity::class,
-        ChecklistItemEntity::class
+        ChecklistItemEntity::class,
+        StaffFeedbackEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 abstract class AttendanceDatabase : RoomDatabase() {
@@ -31,6 +32,7 @@ abstract class AttendanceDatabase : RoomDatabase() {
     abstract fun hisabProductDao(): HisabProductDao
     abstract fun hisabLedgerEntryDao(): HisabLedgerEntryDao
     abstract fun checklistItemDao(): ChecklistItemDao
+    abstract fun staffFeedbackDao(): StaffFeedbackDao
 
     companion object {
         @Volatile
@@ -208,6 +210,25 @@ abstract class AttendanceDatabase : RoomDatabase() {
             try {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_checklist_items_studentId ON checklist_items(studentId)")
             } catch (_: Exception) { }
+
+            // 8. Staff Feedback (Complaints & Appreciations)
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS staff_feedback (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    studentId INTEGER NOT NULL,
+                    entryType TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    details TEXT NOT NULL DEFAULT '',
+                    category TEXT NOT NULL DEFAULT 'GENERAL',
+                    dateString TEXT NOT NULL,
+                    isResolved INTEGER NOT NULL DEFAULT 0,
+                    timestamp INTEGER NOT NULL DEFAULT 0,
+                    FOREIGN KEY(studentId) REFERENCES students(id) ON DELETE CASCADE
+                )
+            """.trimIndent())
+            try {
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_staff_feedback_studentId ON staff_feedback(studentId)")
+            } catch (_: Exception) { }
         }
 
         private val MIGRATION_1_2 = object : Migration(1, 2) { override fun migrate(db: SupportSQLiteDatabase) = ensureAllTablesAndIndices(db) }
@@ -222,6 +243,21 @@ abstract class AttendanceDatabase : RoomDatabase() {
         private val MIGRATION_10_11 = object : Migration(10, 11) { override fun migrate(db: SupportSQLiteDatabase) = ensureAllTablesAndIndices(db) }
         private val MIGRATION_11_12 = object : Migration(11, 12) { override fun migrate(db: SupportSQLiteDatabase) = ensureAllTablesAndIndices(db) }
         private val MIGRATION_12_13 = object : Migration(12, 13) { override fun migrate(db: SupportSQLiteDatabase) = ensureAllTablesAndIndices(db) }
+        private val MIGRATION_13_14 = object : Migration(13, 14) { override fun migrate(db: SupportSQLiteDatabase) = ensureAllTablesAndIndices(db) }
+
+        // Direct jumps from any version to version 14
+        private val MIGRATION_1_14 = object : Migration(1, 14) { override fun migrate(db: SupportSQLiteDatabase) = ensureAllTablesAndIndices(db) }
+        private val MIGRATION_2_14 = object : Migration(2, 14) { override fun migrate(db: SupportSQLiteDatabase) = ensureAllTablesAndIndices(db) }
+        private val MIGRATION_3_14 = object : Migration(3, 14) { override fun migrate(db: SupportSQLiteDatabase) = ensureAllTablesAndIndices(db) }
+        private val MIGRATION_4_14 = object : Migration(4, 14) { override fun migrate(db: SupportSQLiteDatabase) = ensureAllTablesAndIndices(db) }
+        private val MIGRATION_5_14 = object : Migration(5, 14) { override fun migrate(db: SupportSQLiteDatabase) = ensureAllTablesAndIndices(db) }
+        private val MIGRATION_6_14 = object : Migration(6, 14) { override fun migrate(db: SupportSQLiteDatabase) = ensureAllTablesAndIndices(db) }
+        private val MIGRATION_7_14 = object : Migration(7, 14) { override fun migrate(db: SupportSQLiteDatabase) = ensureAllTablesAndIndices(db) }
+        private val MIGRATION_8_14 = object : Migration(8, 14) { override fun migrate(db: SupportSQLiteDatabase) = ensureAllTablesAndIndices(db) }
+        private val MIGRATION_9_14 = object : Migration(9, 14) { override fun migrate(db: SupportSQLiteDatabase) = ensureAllTablesAndIndices(db) }
+        private val MIGRATION_10_14 = object : Migration(10, 14) { override fun migrate(db: SupportSQLiteDatabase) = ensureAllTablesAndIndices(db) }
+        private val MIGRATION_11_14 = object : Migration(11, 14) { override fun migrate(db: SupportSQLiteDatabase) = ensureAllTablesAndIndices(db) }
+        private val MIGRATION_12_14 = object : Migration(12, 14) { override fun migrate(db: SupportSQLiteDatabase) = ensureAllTablesAndIndices(db) }
 
         // Direct jumps from any version to version 13
         private val MIGRATION_1_13 = object : Migration(1, 13) { override fun migrate(db: SupportSQLiteDatabase) = ensureAllTablesAndIndices(db) }
@@ -282,7 +318,8 @@ abstract class AttendanceDatabase : RoomDatabase() {
                     "attendance_database"
                 )
                 .addMigrations(
-                    MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13,
+                    MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
+                    MIGRATION_1_14, MIGRATION_2_14, MIGRATION_3_14, MIGRATION_4_14, MIGRATION_5_14, MIGRATION_6_14, MIGRATION_7_14, MIGRATION_8_14, MIGRATION_9_14, MIGRATION_10_14, MIGRATION_11_14, MIGRATION_12_14,
                     MIGRATION_1_13, MIGRATION_2_13, MIGRATION_3_13, MIGRATION_4_13, MIGRATION_5_13, MIGRATION_6_13, MIGRATION_7_13, MIGRATION_8_13, MIGRATION_9_13, MIGRATION_10_13, MIGRATION_11_13,
                     MIGRATION_1_12, MIGRATION_2_12, MIGRATION_3_12, MIGRATION_4_12, MIGRATION_5_12, MIGRATION_6_12, MIGRATION_7_12, MIGRATION_8_12, MIGRATION_9_12, MIGRATION_10_12,
                     MIGRATION_1_11, MIGRATION_2_11, MIGRATION_3_11, MIGRATION_4_11, MIGRATION_5_11, MIGRATION_6_11, MIGRATION_7_11, MIGRATION_8_11, MIGRATION_9_11

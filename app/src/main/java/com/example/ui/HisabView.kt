@@ -84,6 +84,7 @@ fun HisabView(
     firebaseLastSyncTime: Long = 0L,
     onSavePortalBaseUrl: ((String) -> Unit)? = null,
     onSyncToFirebaseNow: (() -> Unit)? = null,
+    onAutoSyncForShare: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -577,7 +578,7 @@ fun HisabView(
         sb.append("🔴 ${bold}$balanceLabel:${bold} ₹${kotlin.math.abs(periodNetBalance).toInt()}\n")
         sb.append("━━━━━━━━━━━━━━━━━━━━\n")
         if (shareLink.isNotBlank()) {
-            sb.append("🔗 ${bold}LIVE VIEW-ONLY PASSBOOK LINK:${bold}\n")
+            sb.append("🔗 ${bold}LIVE VIEW-ONLY T-HISAB LINK:${bold}\n")
             sb.append("$shareLink\n")
             sb.append("━━━━━━━━━━━━━━━━━━━━\n")
         }
@@ -676,7 +677,14 @@ fun HisabView(
         lockToEmployee: Boolean = true
     ) {
         // mode: 0 = WhatsApp, 1 = System Share Chooser, 2 = Copy Link Only, 3 = Copy Full Passbook Text
-        val link = getEmployeeShareLink(student, lockToEmployee = lockToEmployee)
+        if (mode == 0 || mode == 1 || mode == 2) {
+            onAutoSyncForShare?.invoke()
+        }
+        val link = getEmployeeShareLink(
+            student = student,
+            monthFilter = if (periodMode == 0) selectedMonth else null,
+            lockToEmployee = lockToEmployee
+        )
         val fullText = generateEmployeeShareText(
             student = student,
             isWhatsApp = (mode == 0),
@@ -5257,6 +5265,9 @@ fun HisabView(
 
     // Dialog: Share Employee Passbook & Incentive Statement Link
     showShareEmployeeDialog?.let { student ->
+        LaunchedEffect(student.id) {
+            onAutoSyncForShare?.invoke()
+        }
         var shareLockToEmployee by remember { mutableStateOf(true) }
         val empLink = getEmployeeShareLink(
             student = student,
@@ -5917,6 +5928,7 @@ fun HisabView(
                                         Spacer(modifier = Modifier.width(4.dp))
                                         IconButton(
                                             onClick = {
+                                                onAutoSyncForShare?.invoke()
                                                 clipboardManager.setText(AnnotatedString(empLink))
                                                 Toast.makeText(context, "View-only link copied!", Toast.LENGTH_SHORT).show()
                                             },
@@ -5931,6 +5943,7 @@ fun HisabView(
                                         }
                                         IconButton(
                                             onClick = {
+                                                onAutoSyncForShare?.invoke()
                                                 try {
                                                     val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(empLink))
                                                     context.startActivity(browserIntent)

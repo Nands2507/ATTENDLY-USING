@@ -1258,12 +1258,14 @@ fun ChecklistView(
                     }
                     items(generalList, key = { it.id }) { item ->
                         val itemIndex = generalList.indexOf(item)
+                        val canMoveUp = itemIndex > 0 && generalList[itemIndex - 1].isDoneToday == item.isDoneToday
+                        val canMoveDown = itemIndex >= 0 && itemIndex < generalList.size - 1 && generalList[itemIndex + 1].isDoneToday == item.isDoneToday
                         ChecklistItemCard(
                             item = item,
                             student = null,
                             showStaffName = true,
-                            canMoveUp = itemIndex > 0,
-                            canMoveDown = itemIndex < generalList.size - 1,
+                            canMoveUp = canMoveUp,
+                            canMoveDown = canMoveDown,
                             onMoveUp = {
                                 if (itemIndex > 0) {
                                     val target = generalList[itemIndex - 1]
@@ -1325,12 +1327,14 @@ fun ChecklistView(
                         }
                         items(studentTasks, key = { it.id }) { item ->
                             val itemIndex = studentTasks.indexOf(item)
+                            val canMoveUp = itemIndex > 0 && studentTasks[itemIndex - 1].isDoneToday == item.isDoneToday
+                            val canMoveDown = itemIndex >= 0 && itemIndex < studentTasks.size - 1 && studentTasks[itemIndex + 1].isDoneToday == item.isDoneToday
                             ChecklistItemCard(
                                 item = item,
                                 student = student,
                                 showStaffName = false,
-                                canMoveUp = itemIndex > 0,
-                                canMoveDown = itemIndex < studentTasks.size - 1,
+                                canMoveUp = canMoveUp,
+                                canMoveDown = canMoveDown,
                                 onMoveUp = {
                                     if (itemIndex > 0) {
                                         val target = studentTasks[itemIndex - 1]
@@ -1393,12 +1397,14 @@ fun ChecklistView(
                     }
                     items(unmappedTasks, key = { it.id }) { item ->
                         val itemIndex = unmappedTasks.indexOf(item)
+                        val canMoveUp = itemIndex > 0 && unmappedTasks[itemIndex - 1].isDoneToday == item.isDoneToday
+                        val canMoveDown = itemIndex >= 0 && itemIndex < unmappedTasks.size - 1 && unmappedTasks[itemIndex + 1].isDoneToday == item.isDoneToday
                         ChecklistItemCard(
                             item = item,
                             student = null,
                             showStaffName = true,
-                            canMoveUp = itemIndex > 0,
-                            canMoveDown = itemIndex < unmappedTasks.size - 1,
+                            canMoveUp = canMoveUp,
+                            canMoveDown = canMoveDown,
                             onMoveUp = {
                                 if (itemIndex > 0) {
                                     val target = unmappedTasks[itemIndex - 1]
@@ -1447,12 +1453,14 @@ fun ChecklistView(
                         if (item.studentId > 0L) allStudents.find { it.id == item.studentId } else selectedStudent
                     }
                     val itemIndex = filteredItems.indexOf(item)
+                    val canMoveUp = itemIndex > 0 && filteredItems[itemIndex - 1].isDoneToday == item.isDoneToday
+                    val canMoveDown = itemIndex >= 0 && itemIndex < filteredItems.size - 1 && filteredItems[itemIndex + 1].isDoneToday == item.isDoneToday
                     ChecklistItemCard(
                         item = item,
                         student = taskStudent,
                         showStaffName = selectedScopeId == CHECKLIST_SCOPE_GENERAL,
-                        canMoveUp = itemIndex > 0,
-                        canMoveDown = itemIndex < filteredItems.size - 1,
+                        canMoveUp = canMoveUp,
+                        canMoveDown = canMoveDown,
                         onMoveUp = {
                             if (itemIndex > 0) {
                                 val target = filteredItems[itemIndex - 1]
@@ -1887,11 +1895,13 @@ fun ChecklistView(
         )
     }
 
-    // DIALOG: BULK REORDER TASKS FOR PARTICULAR EMPLOYEE / SCOPE
+    // DIALOG: BULK REORDER TASKS OR CHECKLIST FOR PARTICULAR EMPLOYEE / SCOPE
     if (bulkReorderTaskList != null) {
         RearrangeEmployeeTasksDialog(
             scopeName = bulkReorderScopeTitle,
             tasks = bulkReorderTaskList!!,
+            dialogTitle = if (selectedListType == "CHECKLIST") "Reorder Checklist" else "Reorder Tasks",
+            itemLabel = if (selectedListType == "CHECKLIST") "items" else "tasks",
             onDismiss = { bulkReorderTaskList = null },
             onSaveOrder = { newOrderedList ->
                 onReorderItems(newOrderedList)
@@ -3159,6 +3169,8 @@ fun RearrangeTaskDialog(
 fun RearrangeEmployeeTasksDialog(
     scopeName: String,
     tasks: List<ChecklistItemEntity>,
+    dialogTitle: String = "Reorder Tasks",
+    itemLabel: String = "tasks",
     onDismiss: () -> Unit,
     onSaveOrder: (List<ChecklistItemEntity>) -> Unit
 ) {
@@ -3188,12 +3200,12 @@ fun RearrangeEmployeeTasksDialog(
         title = {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = "Reorder Tasks",
+                    text = dialogTitle,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "👤 $scopeName • ${orderedItems.size} tasks",
+                    text = "👤 $scopeName • ${orderedItems.size} $itemLabel",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.SemiBold,

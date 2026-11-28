@@ -242,3 +242,29 @@ interface ChecklistItemDao {
     suspend fun resetCompletionsForStudent(studentId: Long)
 }
 
+@Dao
+interface StaffFeedbackDao {
+    @Query("SELECT * FROM staff_feedback ORDER BY dateString DESC, timestamp DESC, id DESC")
+    fun getAllFeedback(): Flow<List<StaffFeedbackEntity>>
+
+    @Query("SELECT * FROM staff_feedback ORDER BY dateString DESC, timestamp DESC, id DESC")
+    suspend fun getAllFeedbackList(): List<StaffFeedbackEntity>
+
+    @Query("SELECT * FROM staff_feedback WHERE studentId = :studentId ORDER BY dateString DESC, timestamp DESC, id DESC")
+    fun getFeedbackForStudent(studentId: Long): Flow<List<StaffFeedbackEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertFeedback(feedback: StaffFeedbackEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertFeedbackList(items: List<StaffFeedbackEntity>)
+
+    @Update
+    suspend fun updateFeedback(feedback: StaffFeedbackEntity)
+
+    @Delete
+    suspend fun deleteFeedback(feedback: StaffFeedbackEntity)
+
+    @Query("DELETE FROM staff_feedback")
+    suspend fun deleteAllFeedback()
+}

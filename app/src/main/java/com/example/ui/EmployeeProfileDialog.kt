@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Warning
@@ -101,6 +102,7 @@ import com.example.data.ClassEntity
 import com.example.data.HisabLedgerEntryEntity
 import com.example.data.PayrollPreferences
 import com.example.data.ShiftEntity
+import com.example.data.StaffFeedbackEntity
 import com.example.data.StudentEntity
 import com.example.data.cleanEmployeeName
 import com.example.data.displayName
@@ -125,18 +127,24 @@ fun EmployeeProfileDialog(
     allRecords: List<AttendanceRecordEntity>,
     allHisabEntries: List<HisabLedgerEntryEntity>,
     allChecklistItems: List<ChecklistItemEntity>,
+    allStaffFeedback: List<StaffFeedbackEntity> = emptyList(),
     onDismiss: () -> Unit,
     onOpenAttendanceTab: () -> Unit = {},
     onOpenHisabTab: (StudentEntity) -> Unit = {},
     onOpenPayrollTab: (StudentEntity) -> Unit = {},
     onOpenChecklistTab: (StudentEntity) -> Unit = {},
+    onToggleChecklistItem: (ChecklistItemEntity) -> Unit = {},
     onScheduleSmsForTask: (ChecklistItemEntity) -> Unit = {},
-    onReorderTasks: (List<ChecklistItemEntity>) -> Unit = {}
+    onReorderTasks: (List<ChecklistItemEntity>) -> Unit = {},
+    onAddFeedback: (studentId: Long, entryType: String, title: String, details: String, category: String, dateString: String) -> Unit = { _, _, _, _, _, _ -> },
+    onUpdateFeedback: (StaffFeedbackEntity) -> Unit = {},
+    onToggleFeedbackResolved: (StaffFeedbackEntity) -> Unit = {},
+    onDeleteFeedback: (StaffFeedbackEntity) -> Unit = {}
 ) {
     val context = LocalContext.current
     val payrollPrefs = remember { PayrollPreferences(context) }
 
-    // Tab state: 0 = Overview, 1 = Attendance, 2 = T-Hisab, 3 = Payroll, 4 = Tasks
+    // Tab state: 0 = Overview, 1 = Attendance, 2 = T-Hisab, 3 = Payroll, 4 = Tasks & Checklist, 5 = Complaint & Praise
     var selectedTab by remember { mutableIntStateOf(0) }
 
     val cleanName = student.displayName
@@ -262,10 +270,20 @@ fun EmployeeProfileDialog(
     val (isSettled, settleMode) = remember(student.id, currentMonthKey) { payrollPrefs.getSettledInfo(student.id, currentMonthKey) }
 
     // -------------------------------------------------------------
-    // TASKS STATS
+    // TASKS & CHECKLIST STATS
     // -------------------------------------------------------------
-    val completedTasksCount = employeeTasks.count { it.isCompleted }
-    val pendingTasksCount = employeeTasks.count { !it.isCompleted }
+    val completedTasksCount = employeeTasks.count { it.isDoneToday }
+    val pendingTasksCount = employeeTasks.count { !it.isDoneToday }
+
+    // -------------------------------------------------------------
+    // COMPLAINT & APPRECIATION STATS
+    // -------------------------------------------------------------
+    val employeeFeedback = remember(allStaffFeedback, student.id) {
+        allStaffFeedback.filter { it.studentId == student.id }
+    }
+    val appreciationCount = employeeFeedback.count { it.entryType == "APPRECIATION" }
+    val complaintCount = employeeFeedback.count { it.entryType == "COMPLAINT" }
+    val openComplaintCount = employeeFeedback.count { it.entryType == "COMPLAINT" && !it.isResolved }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -462,7 +480,8 @@ fun EmployeeProfileDialog(
                     "Attendance" to Icons.Default.CalendarMonth,
                     "T-Hisab" to Icons.Default.ReceiptLong,
                     "Payroll" to Icons.Default.Payments,
-                    "Tasks (${pendingTasksCount})" to Icons.Default.Checklist
+                    "Tasks & Check ($pendingTasksCount)" to Icons.Default.Checklist,
+                    "Complaint & Praise (${employeeFeedback.size})" to Icons.Default.ThumbUp
                 )
 
                 ScrollableTabRow(
@@ -481,6 +500,7 @@ fun EmployeeProfileDialog(
                         Tab(
                             selected = selectedTab == index,
                             onClick = { selectedTab = index },
+                            modifier = Modifier.testTag("profile_tab_$index"),
                             text = {
                                 Text(
                                     text = label,
@@ -523,6 +543,9 @@ fun EmployeeProfileDialog(
                             isSettled = isSettled,
                             completedTasksCount = completedTasksCount,
                             pendingTasksCount = pendingTasksCount,
+                            appreciationCount = appreciationCount,
+                            complaintCount = complaintCount,
+                            openComplaintCount = openComplaintCount,
                             recentRecords = employeeRecords.take(5),
                             onGoToAttendance = { selectedTab = 1 },
                             onGoToHisab = {
@@ -533,10 +556,8 @@ fun EmployeeProfileDialog(
                                 onDismiss()
                                 onOpenPayrollTab(student)
                             },
-                            onGoToTasks = {
-                                onDismiss()
-                                onOpenChecklistTab(student)
-                            }
+                            onGoToTasks = { selectedTab = 4 },
+                            onGoToFeedback = { selectedTab = 5 }
                         )
                         1 -> ProfileAttendanceTab(
                             student = student,
@@ -594,12 +615,21 @@ fun EmployeeProfileDialog(
                         4 -> ProfileTasksTab(
                             student = student,
                             tasks = employeeTasks,
+                            onToggleChecklistItem = onToggleChecklistItem,
                             onScheduleSmsForTask = onScheduleSmsForTask,
                             onReorderTasks = onReorderTasks,
                             onOpenFullTasks = {
                                 onDismiss()
                                 onOpenChecklistTab(student)
                             }
+                        )
+                        5 -> StaffFeedbackTabContent(
+                            student = student,
+                            feedbackList = employeeFeedback,
+                            onAddFeedback = onAddFeedback,
+                            onUpdateFeedback = onUpdateFeedback,
+                            onToggleResolved = onToggleFeedbackResolved,
+                            onDeleteFeedback = onDeleteFeedback
                         )
                     }
                 }
@@ -657,11 +687,15 @@ private fun ProfileOverviewTab(
     isSettled: Boolean,
     completedTasksCount: Int,
     pendingTasksCount: Int,
+    appreciationCount: Int,
+    complaintCount: Int,
+    openComplaintCount: Int,
     recentRecords: List<AttendanceRecordEntity>,
     onGoToAttendance: () -> Unit,
     onGoToHisab: () -> Unit,
     onGoToPayroll: () -> Unit,
-    onGoToTasks: () -> Unit
+    onGoToTasks: () -> Unit,
+    onGoToFeedback: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -713,17 +747,28 @@ private fun ProfileOverviewTab(
                 onClick = onGoToPayroll
             )
 
-            // 4. Tasks KPI
+            // 4. Tasks & Checklist KPI
             MetricSummaryCard(
-                title = "Tasks & Duties",
+                title = "Tasks & Checklist",
                 value = "$completedTasksCount Done",
-                subtitle = if (pendingTasksCount > 0) "$pendingTasksCount Pending Duty" else "All Done ✓",
+                subtitle = if (pendingTasksCount > 0) "$pendingTasksCount Pending • Tap to reorder" else "All Done ✓",
                 badge = if (pendingTasksCount == 0) "Clean" else "$pendingTasksCount Active",
                 color = if (pendingTasksCount > 0) Color(0xFFEA580C) else Color(0xFF16A34A),
                 modifier = Modifier.weight(1f),
                 onClick = onGoToTasks
             )
         }
+
+        // Complaint & Appreciation Overview KPI Banner
+        MetricSummaryCard(
+            title = "Complaint & Appreciation",
+            value = "$appreciationCount Appreciation • $complaintCount Complaints",
+            subtitle = if (openComplaintCount > 0) "$openComplaintCount open complaint(s) need attention" else "Tap to view or log praise & complaints",
+            badge = if (openComplaintCount > 0) "$openComplaintCount Open" else "Good Record",
+            color = if (openComplaintCount > 0) Color(0xFFDC2626) else Color(0xFF16A34A),
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onGoToFeedback
+        )
 
         // Quick Jump Section Bar
         Card(
@@ -1474,16 +1519,27 @@ private fun PayrollLineItem(title: String, amount: String, color: Color = Color.
 }
 
 /**
- * Tasks Tab: Assigned Duties, Checklists, and SMS Scheduling
+ * Tasks & Daily Checklist Tab: Separated Daily Checklist vs Assigned Tasks with Drag/Up/Down Reordering
  */
 @Composable
 private fun ProfileTasksTab(
     student: StudentEntity,
     tasks: List<ChecklistItemEntity>,
+    onToggleChecklistItem: (ChecklistItemEntity) -> Unit,
     onScheduleSmsForTask: (ChecklistItemEntity) -> Unit,
     onReorderTasks: (List<ChecklistItemEntity>) -> Unit,
     onOpenFullTasks: () -> Unit
 ) {
+    val checklistItems = remember(tasks) { tasks.filter { it.isChecklist } }
+    val taskItems = remember(tasks) { tasks.filter { it.isTask } }
+
+    var selectedListType by remember(student.id) {
+        mutableStateOf(if (checklistItems.isNotEmpty() || taskItems.isEmpty()) "CHECKLIST" else "TASK")
+    }
+    val activeList = if (selectedListType == "CHECKLIST") checklistItems else taskItems
+    val isChecklistTab = selectedListType == "CHECKLIST"
+    val accentColor = if (isChecklistTab) Color(0xFF7C3AED) else Color(0xFFEA580C)
+
     var showReorderDialog by remember { mutableStateOf(false) }
 
     Column(
@@ -1492,16 +1548,67 @@ private fun ProfileTasksTab(
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        // Sub-Tab Switcher: Daily Checklist vs Tasks
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val checklistDone = checklistItems.count { it.isDoneToday }
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = if (isChecklistTab) Color(0xFF7C3AED) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(42.dp)
+                    .clickable { selectedListType = "CHECKLIST" }
+                    .testTag("btn_profile_subtab_checklist")
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
+                    Text(
+                        text = "Checklist ($checklistDone/${checklistItems.size})",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isChecklistTab) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            val taskDone = taskItems.count { it.isDoneToday }
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = if (!isChecklistTab) Color(0xFFEA580C) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(42.dp)
+                    .clickable { selectedListType = "TASK" }
+                    .testTag("btn_profile_subtab_tasks")
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
+                    Text(
+                        text = "Tasks ($taskDone/${taskItems.size})",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (!isChecklistTab) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+
+        // Header + Reorder + Manage
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Assigned Duties & Tasks (${tasks.size})",
+                text = if (isChecklistTab) "Daily Checklist (${activeList.size})" else "Assigned Tasks (${activeList.size})",
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = accentColor,
                 modifier = Modifier.weight(1f, fill = false),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -1511,19 +1618,20 @@ private fun ProfileTasksTab(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (tasks.size > 1) {
+                if (activeList.size > 1) {
                     OutlinedButton(
                         onClick = { showReorderDialog = true },
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.5f)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = accentColor),
                         modifier = Modifier
-                            .height(30.dp)
-                            .testTag("btn_profile_reorder_tasks")
+                            .height(32.dp)
+                            .testTag("btn_profile_reorder_${selectedListType.lowercase()}")
                     ) {
                         Icon(
                             imageVector = Icons.Default.SwapVert,
-                            contentDescription = "Reorder Tasks",
-                            modifier = Modifier.size(13.dp)
+                            contentDescription = if (isChecklistTab) "Reorder Checklist" else "Reorder Tasks",
+                            modifier = Modifier.size(14.dp)
                         )
                         Spacer(modifier = Modifier.width(3.dp))
                         Text("Reorder", fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -1541,7 +1649,7 @@ private fun ProfileTasksTab(
             }
         }
 
-        if (tasks.isEmpty()) {
+        if (activeList.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1549,7 +1657,11 @@ private fun ProfileTasksTab(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "No tasks or duties assigned to ${student.displayName}.",
+                    text = if (isChecklistTab) {
+                        "No daily checklist items assigned to ${student.displayName}."
+                    } else {
+                        "No tasks assigned to ${student.displayName}."
+                    },
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1561,18 +1673,18 @@ private fun ProfileTasksTab(
                     .weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(tasks, key = { it.id }) { item ->
-                    val index = tasks.indexOfFirst { it.id == item.id }
+                items(activeList, key = { it.id }) { item ->
+                    val index = activeList.indexOfFirst { it.id == item.id }
                     val isDone = item.isDoneToday
-                    val canMoveUp = index > 0 && tasks[index - 1].isDoneToday == isDone
-                    val canMoveDown = index >= 0 && index < tasks.size - 1 && tasks[index + 1].isDoneToday == isDone
+                    val canMoveUp = index > 0 && activeList[index - 1].isDoneToday == isDone
+                    val canMoveDown = index >= 0 && index < activeList.size - 1 && activeList[index + 1].isDoneToday == isDone
 
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = MaterialTheme.colorScheme.surface,
                         border = BorderStroke(
                             1.dp,
-                            if (isDone) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f) else Color(0xFFEA580C).copy(alpha = 0.35f)
+                            if (isDone) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f) else accentColor.copy(alpha = 0.35f)
                         ),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -1580,17 +1692,20 @@ private fun ProfileTasksTab(
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.Top
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { onToggleChecklistItem(item) }
+                                        .testTag("checkbox_profile_item_${item.id}"),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
                                         imageVector = if (isDone) Icons.Default.CheckCircle else Icons.Default.Today,
-                                        contentDescription = null,
-                                        tint = if (isDone) Color(0xFF16A34A) else Color(0xFFEA580C),
-                                        modifier = Modifier.size(16.dp)
+                                        contentDescription = if (isDone) "Completed, tap to unmark" else "Pending, tap to complete",
+                                        tint = if (isDone) Color(0xFF16A34A) else accentColor,
+                                        modifier = Modifier.size(18.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
@@ -1603,14 +1718,15 @@ private fun ProfileTasksTab(
 
                                 Surface(
                                     shape = RoundedCornerShape(4.dp),
-                                    color = if (isDone) Color(0xFFDCFCE7) else Color(0xFFFEF3C7)
+                                    color = if (isDone) Color(0xFFDCFCE7) else Color(0xFFFEF3C7),
+                                    modifier = Modifier.clickable { onToggleChecklistItem(item) }
                                 ) {
                                     Text(
                                         text = if (isDone) "✓ Done" else "Pending",
                                         fontSize = 9.5.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (isDone) Color(0xFF15803D) else Color(0xFFB45309),
-                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
                             }
@@ -1640,19 +1756,19 @@ private fun ProfileTasksTab(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                if (tasks.size > 1) {
+                                if (activeList.size > 1) {
                                     Row(
                                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Surface(
                                             shape = RoundedCornerShape(6.dp),
-                                            color = if (canMoveUp) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                            color = if (canMoveUp) accentColor.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                                             modifier = Modifier
                                                 .size(28.dp)
                                                 .clickable(enabled = canMoveUp) {
                                                     if (canMoveUp) {
-                                                        val mutable = tasks.toMutableList()
+                                                        val mutable = activeList.toMutableList()
                                                         mutable[index] = mutable[index - 1]
                                                         mutable[index - 1] = item
                                                         onReorderTasks(mutable)
@@ -1663,20 +1779,20 @@ private fun ProfileTasksTab(
                                             Box(contentAlignment = Alignment.Center) {
                                                 Icon(
                                                     imageVector = Icons.Default.KeyboardArrowUp,
-                                                    contentDescription = "Move task up",
-                                                    tint = if (canMoveUp) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
+                                                    contentDescription = "Move up",
+                                                    tint = if (canMoveUp) accentColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
                                                     modifier = Modifier.size(18.dp)
                                                 )
                                             }
                                         }
                                         Surface(
                                             shape = RoundedCornerShape(6.dp),
-                                            color = if (canMoveDown) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                            color = if (canMoveDown) accentColor.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                                             modifier = Modifier
                                                 .size(28.dp)
                                                 .clickable(enabled = canMoveDown) {
                                                     if (canMoveDown) {
-                                                        val mutable = tasks.toMutableList()
+                                                        val mutable = activeList.toMutableList()
                                                         mutable[index] = mutable[index + 1]
                                                         mutable[index + 1] = item
                                                         onReorderTasks(mutable)
@@ -1687,8 +1803,8 @@ private fun ProfileTasksTab(
                                             Box(contentAlignment = Alignment.Center) {
                                                 Icon(
                                                     imageVector = Icons.Default.KeyboardArrowDown,
-                                                    contentDescription = "Move task down",
-                                                    tint = if (canMoveDown) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
+                                                    contentDescription = "Move down",
+                                                    tint = if (canMoveDown) accentColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
                                                     modifier = Modifier.size(18.dp)
                                                 )
                                             }
@@ -1718,8 +1834,10 @@ private fun ProfileTasksTab(
 
     if (showReorderDialog) {
         RearrangeEmployeeTasksDialog(
-            scopeName = student.displayName,
-            tasks = tasks,
+            scopeName = "${student.displayName} • ${if (isChecklistTab) "Checklist" else "Tasks"}",
+            tasks = activeList,
+            dialogTitle = if (isChecklistTab) "Reorder Daily Checklist" else "Reorder Tasks",
+            itemLabel = if (isChecklistTab) "items" else "tasks",
             onDismiss = { showReorderDialog = false },
             onSaveOrder = { newOrderedList ->
                 onReorderTasks(newOrderedList)

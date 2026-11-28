@@ -145,6 +145,24 @@ object BackupRestoreHelper {
         }
         root.put("checklistItems", checklistArray)
 
+        // 8. Staff Feedback (Complaints & Appreciations)
+        val feedbackList = repository.getAllStaffFeedbackList()
+        val feedbackArray = JSONArray()
+        for (fb in feedbackList) {
+            val obj = JSONObject()
+            obj.put("id", fb.id)
+            obj.put("studentId", fb.studentId)
+            obj.put("entryType", fb.entryType)
+            obj.put("title", fb.title)
+            obj.put("details", fb.details)
+            obj.put("category", fb.category)
+            obj.put("dateString", fb.dateString)
+            obj.put("isResolved", fb.isResolved)
+            obj.put("timestamp", fb.timestamp)
+            feedbackArray.put(obj)
+        }
+        root.put("staffFeedback", feedbackArray)
+
         root.toString(2)
     }
 
@@ -320,7 +338,27 @@ object BackupRestoreHelper {
                 )
             }
 
-            if (classList.isEmpty() && studentList.isEmpty() && productList.isEmpty() && checklistItemList.isEmpty()) {
+            // Parse Staff Feedback
+            val feedbackArray = root.optJSONArray("staffFeedback") ?: JSONArray()
+            val feedbackItemList = mutableListOf<StaffFeedbackEntity>()
+            for (i in 0 until feedbackArray.length()) {
+                val obj = feedbackArray.getJSONObject(i)
+                feedbackItemList.add(
+                    StaffFeedbackEntity(
+                        id = obj.optLong("id", 0L),
+                        studentId = obj.getLong("studentId"),
+                        entryType = obj.optString("entryType", "APPRECIATION"),
+                        title = obj.getString("title"),
+                        details = obj.optString("details", ""),
+                        category = obj.optString("category", "GENERAL"),
+                        dateString = obj.optString("dateString", SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())),
+                        isResolved = obj.optBoolean("isResolved", false),
+                        timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                    )
+                )
+            }
+
+            if (classList.isEmpty() && studentList.isEmpty() && productList.isEmpty() && checklistItemList.isEmpty() && feedbackItemList.isEmpty()) {
                 return@withContext Result.failure(Exception("Backup file does not contain valid data."))
             }
 
@@ -379,7 +417,15 @@ object BackupRestoreHelper {
                 } catch (e: Exception) { }
             }
 
-            Result.success("Restored ${classList.size} departments, ${studentList.size} staff members, ${recordList.size} attendance records, ${entryList.size} T-Hisab entries, and ${checklistItemList.size} checklist items!")
+            for (fb in feedbackItemList) {
+                try {
+                    if (insertedStudentIds.contains(fb.studentId)) {
+                        repository.insertStaffFeedback(fb)
+                    }
+                } catch (e: Exception) { }
+            }
+
+            Result.success("Restored ${classList.size} departments, ${studentList.size} staff members, ${recordList.size} attendance records, ${entryList.size} T-Hisab entries, ${checklistItemList.size} checklist items, and ${feedbackItemList.size} feedback logs!")
         } catch (e: Exception) {
             Result.failure(Exception("Failed to restore backup: ${e.message}"))
         }
